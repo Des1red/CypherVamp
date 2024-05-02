@@ -314,6 +314,8 @@ func getSpecificURL(ip, outputDir string) {
 }
 // ??
 
+
+// Scan ip from file concurently
 func ScanFile() {
     fmt.Print("File with targets " + Red + ">> " + Reset)
     var fileToScan string
@@ -404,52 +406,71 @@ func MassiveScan(ip, outputDir string) string {
 
     return output.String() // Return output as string
 }
+
 // NetScan from here to ****
 func netScan() {
-	var subnet string
-	fmt.Print("Enter the subnet address (e.g., 192.168.1.0/24, empty for default): ")
-	fmt.Scanln(&subnet)
-	if subnet == "" {
-		subnet = "192.168.1.0/24"
-	}
-	fmt.Println(Green + "Scanning " + Reset + subnet + Red + " >>" + Reset)
-	// Define the Nmap command with the subnet address and options to scan for alive hosts with open ports
-	cmd := exec.Command("nmap", "-p80,443,21,22,20", "-oG", "-", "-T4", "-Pn", "-sP", "--script=vulners", subnet)
-	// Execute the command
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		fmt.Println("Error:", err)
-		return
-	}
-	
-	// Parse the output to extract alive hosts with open ports
-	scannedHosts := parseNmapOutput(string(output))
+    var subnet string
+    fmt.Print("Enter the subnet address (e.g., 192.168.1.0/24, empty for default): ")
+    fmt.Scanln(&subnet)
+    if subnet == "" {
+        subnet = "192.168.1.0/24"
+    }
+    fmt.Println(Green + "Scanning " + Reset + subnet + Red + " >>" + Reset)
+    // Define the Nmap command with the subnet address and options to scan for alive hosts with open ports
+    cmd := exec.Command("nmap", "-p80,443,21,22,20", "-oG", "-", "-T4", subnet)
 
-	// Print the scanned hosts with open ports
-	for _, host := range scannedHosts {
-		fmt.Println("Scanned host:", host)
-	}
+    // Execute the command
+    output, err := cmd.CombinedOutput()
+    if err != nil {
+        fmt.Println("Error:", err)
+        return
+    }
+
+    // Parse the output to extract alive hosts with open ports
+    scannedHosts := parseNmapOutput(string(output))
+
+    // Check if no hosts were found
+    if len(scannedHosts) == 0 {
+        fmt.Println("No hosts found.")
+        return
+    }
+
+    // Print the scanned hosts with open ports
+    for host, ports := range scannedHosts {
+        fmt.Printf("Scanned host: %s, Open Ports: %v\n", host, ports)
+    }
 }
 	
 // ParseNmapOutput parses the Nmap output and extracts alive hosts with open ports
-func parseNmapOutput(output string) []string {
-	var aliveHosts []string
-	
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
-		// Check if the line indicates an alive host with open ports
-		if strings.Contains(line, "Up") && strings.Contains(line, "Ports") {
-		// Extract the IP address from the line
-				fields := strings.Fields(line)
-			if len(fields) > 1 {
-				aliveHosts = append(aliveHosts, fields[1])
-			}
-		}
-	}
-	
-	return aliveHosts
-}
+func parseNmapOutput(output string) map[string][]string {
+    scannedHosts := make(map[string][]string)
 
+    lines := strings.Split(output, "\n")
+    var currentHost string
+    for _, line := range lines {
+        // Check if the line indicates an alive host with open ports
+        if strings.Contains(line, "Host:") && strings.Contains(line, "Status: Up") {
+            // Extract the IP address from the line
+            fields := strings.Fields(line)
+            if len(fields) >= 2 {
+                currentHost = fields[1]
+            }
+        } else if strings.Contains(line, "/open/") {
+            // Extract port information from the line
+            fields := strings.Fields(line)
+            for _, field := range fields {
+                // Check if the field contains an open port
+                if strings.Contains(field, "/open/") {
+                    // Extract the port number
+                    port := strings.Split(field, "/")[0]
+                    scannedHosts[currentHost] = append(scannedHosts[currentHost], port)
+                }
+            }
+        }
+    }
+
+    return scannedHosts
+}
 // ****
 
 /// Style
