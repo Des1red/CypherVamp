@@ -9,6 +9,7 @@ import (
     "sync"
 	"net"
 	"bufio"
+	"bytes"
 )
 
 // COLORS
@@ -30,6 +31,8 @@ func main() {
 		help()
 	case "-v":
 		vamp()
+	case "--file" :
+		ScanFile()
 	case "-nS", "--net-scan":
 		netScan()
 	default:
@@ -42,11 +45,14 @@ func main() {
 func help() {
 	fmt.Println("Help \n")
 	fmt.Println("Command line >> ")
-	fmt.Println("Command 			Usage")
+	fmt.Println("Command 				Usage")
 	fmt.Println()
-	fmt.Println("	-h 	--help		Opens the command line")
-	fmt.Println("	-v				Opens cypher scanner for sspecific URL/IP")
-	fmt.Println("	-nS	--net-scan	Scans the local network for Targets")
+	fmt.Println("	-h 	--help			Opens the command line")
+	fmt.Println("	--file				Runs Vamp with your own file file with targets")
+	fmt.Println("	-v					Opens cypher scanner for specific URL/IP")
+	fmt.Println("	-nS	--net-scan		Scans the local network for Targets")
+	fmt.Println("\n")
+	fmt.Println(" ! Note : High number of IPs for concurrent scans using the --file argument may affect your system performance")
 }
 
 
@@ -308,6 +314,96 @@ func getSpecificURL(ip, outputDir string) {
 }
 // ??
 
+func ScanFile() {
+    fmt.Print("File with targets " + Red + ">> " + Reset)
+    var fileToScan string
+    fmt.Scanln(&fileToScan)
+    // Read IP list from file
+    ipList, err := readIPListFromFile(fileToScan)
+    if err != nil {
+        fmt.Printf("Error reading IP list: %v\n", err)
+        return
+    }
+
+    // Define the directory path to save the output files
+    outputDir := "FileScanned/"
+
+    // Create the directory if it doesn't exist
+    if _, err := os.Stat(outputDir); os.IsNotExist(err) {
+        os.Mkdir(outputDir, 0755)
+    }
+
+    var wg sync.WaitGroup
+    var mu sync.Mutex // Mutex for protecting buffer
+    var outputBuffer bytes.Buffer // Buffer to collect output
+    done := make(chan struct{}, len(ipList)) // Buffered channel
+
+    for _, ip := range ipList {
+        if isValidIP(ip) {
+            wg.Add(1)
+            go func(ip string) {
+                defer wg.Done()
+                scanOutput := MassiveScan(ip, outputDir)
+                mu.Lock()
+                defer mu.Unlock()
+                outputBuffer.WriteString(scanOutput)
+                done <- struct{}{}
+            }(ip)
+        } else {
+            fmt.Printf("Invalid IP: %s\n", ip)
+        }
+    }
+
+    go func() {
+        wg.Wait()
+        close(done) // Close done channel when all goroutines are done
+    }()
+
+    // Wait for all scans to finish
+    for range ipList {
+        <-done
+    }
+
+    // Print the output at the end
+    fmt.Println(outputBuffer.String())
+}
+
+func readIPListFromFile(filename string) ([]string, error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, err // Return error if file cannot be opened
+	}
+	defer file.Close()
+
+	var ipList []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		ip := scanner.Text()
+		ipList = append(ipList, ip)
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err // Return error if there's an error during scanning
+	}
+
+	return ipList, nil
+}
+
+func MassiveScan(ip, outputDir string) string {
+    var output bytes.Buffer // Buffer to collect output
+    fmt.Printf("Starting " + Green + "Scan" + Reset + " for IP " + Red + ">> " + Reset + "%s\n", Red+ip+Reset)
+    outputFile := outputDir + ip + ".txt"
+    cmd := exec.Command("nmap", "-sV", "-T5", "-A", "--open", "-oA", outputFile, "--script", "vuln", ip)
+    fmt.Println(Green + "scanning " + Reset + " ..." + Red)
+    cmd.Stdout = &output // Redirect command output to buffer
+    fmt.Println("------------------------------------------------------------" + Reset)
+
+    if err := cmd.Run(); err != nil {
+        fmt.Println(Red+"could not run nmap command:", err, Reset)
+    }
+    fmt.Println(Red + " =============================================================" + Reset)
+
+    return output.String() // Return output as string
+}
 // NetScan from here to ****
 func netScan() {
 	var subnet string
