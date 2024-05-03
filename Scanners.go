@@ -10,6 +10,7 @@ import (
 	"net"
 	"bufio"
 	"bytes"
+	"path/filepath"
 )
 
 // COLORS
@@ -373,22 +374,35 @@ func ScanFile() {
     // Print the output at the end
     fmt.Println(outputBuffer.String())
 
-	 // Combine the XML files into one
-	 combinedXMLFile := outputDir + "combined.xml"
-	 cmd := exec.Command("cat", outputDir+"/*.xml")
-	 xmlFile, err := os.Create(combinedXMLFile)
-	 if err != nil {
-		 fmt.Println("Error creating combined XML file:", err)
-		 return
-	 }
-	 defer xmlFile.Close()
- 
-	 cmd.Stdout = xmlFile
-	 if err := cmd.Run(); err != nil {
-		 fmt.Println("Error combining XML files:", err)
-		 return
-	 }
-	 fmt.Println("Combined XML file created successfully:", combinedXMLFile)
+	// Combine the XML files into one
+	combinedXMLFile := outputDir + "combined.xml"
+	fmt.Println("Combining XML files into:", combinedXMLFile)
+
+	// Check the list of XML files in the directory
+	xmlFiles, err := filepath.Glob(outputDir + "*.xml")
+	if err != nil {
+		fmt.Println("Error finding XML files:", err)
+		return
+	}
+	fmt.Println("Found XML files:", xmlFiles)
+
+	// Create the combined XML file
+	xmlFile, err := os.Create(combinedXMLFile)
+	if err != nil {
+		fmt.Println("Error creating combined XML file:", err)
+		return
+	}
+	defer xmlFile.Close()
+
+	// Concatenate the XML files
+	cmd := exec.Command("cat", xmlFiles...)
+	cmd.Stdout = xmlFile
+	if err := cmd.Run(); err != nil {
+		fmt.Println("Error combining XML files:", err)
+		return
+	}
+
+	fmt.Println("Combined XML file created successfully:", combinedXMLFile)
 }
 
 
