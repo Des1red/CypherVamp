@@ -55,7 +55,8 @@ func help() {
 	fmt.Println("	-nS	--net-scan		Scans the local network for Targets")
 	fmt.Println("	-m					Network Monitor")
 	fmt.Println("\n")
-	fmt.Println(" ! Note : High number of IPs for concurrent scans using the --file argument may affect your system performance")
+	fmt.Println(" ! WARNING : High number of IPs for concurrent scans using the --file argument may affect your system performance")
+    fmt.Println("             Using the spoofing option for target scans might cause a dos attack depending on the specific network")
 }
 
 
@@ -138,7 +139,7 @@ func runNmap(ip, outputDir string) {
     // Prompt the user for input until a valid option is provided
     var scan string
     for {
-        fmt.Print("(A)ggresive, (S)poofer <<might cause a DoS, (Q)uick scan " + Red + ">> " + Reset)
+        fmt.Print("(A)ggresive, (S)poofer, (Q)uick scan " + Red + ">> " + Reset)
         fmt.Scanln(&scan)
 
         // Check if the input is valid
