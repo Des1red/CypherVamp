@@ -21,7 +21,7 @@ const (
 
 func main() {
 	// add args such as --help/-h , -n/--network-scan for network scan(do it in new terminal) , -v for vamp(should be the scanners) /if no arguments return msg: for help type cypher --help. 
-	if len(os.Args) < 2 {
+	if len(os.Args) != 2 {
 		fmt.Println("Usage: cypher [options]")
 		return
 	}
@@ -31,7 +31,7 @@ func main() {
 		help()
 	case "-v":
 		vamp()
-	case "--file" :
+	case "--file", "-f" :
 		ScanFile()
 	case "-nS", "--net-scan":
 		netScan()
@@ -49,11 +49,11 @@ func help() {
 	fmt.Println("Command line >> ")
 	fmt.Println("Command 				Usage")
 	fmt.Println()
-	fmt.Println("	-h 	--help			Opens the command line")
-	fmt.Println("	--file				Runs Vamp with your own file file with targets")
-	fmt.Println("	-v					Opens cypher scanner for specific URL/IP")
+	fmt.Println("	-h 	 --help			      Shows the command line")
+	fmt.Println("	-f  	   --file			   Runs Vamp with your own file file with targets")
+	fmt.Println("	-v						Starts cypher scanner for specific URL/IP")
 	fmt.Println("	-nS	--net-scan		Scans the local network for Targets")
-	fmt.Println("	-m					Network Monitor")
+	fmt.Println("	-m					      Network Monitor")
 	fmt.Println("\n")
 	fmt.Println(" ! WARNING : High number of IPs for concurrent scans using the --file argument may affect your system performance")
     fmt.Println("             Using the spoofing option for target scans might cause a dos attack depending on the specific network")
@@ -171,8 +171,8 @@ func runNmap(ip, outputDir string) {
 }
 
 func runNmapAggressive(ip, outputDir string, done chan<- bool) {
-    fmt.Printf("Using nmap " + Green + "Aggressive Scan" + Reset + " for IP " + Red + ">> " + Reset + "%s\n", Red+ip+Reset)
-    cmd := exec.Command("nmap", "-sV", "-sC", "-O", "-p1-10000", "-A", "--open", "--reason", "--stats-every", "30s", "-oA", outputDir+"nmap_output_"+ip, "--script", "vuln", ip)
+    fmt.Printf("Using nmap " + Green + "Aggressive Scan" + Reset + " for IP first 10000 ports" + Red + ">> " + Reset + "%s\n", Red+ip+Reset)
+    cmd := exec.Command("nmap", "-sV", "-sC", "-O", "-p1-10000", "--open", "--stats-every", "30s", "-oA", outputDir+"nmap_output_"+ip, "--script", "vuln", ip)
     fmt.Println(Red + "------------------------------------------------------------")
     cmd.Stdout = os.Stdout
     fmt.Println("------------------------------------------------------------" + Reset)
@@ -194,7 +194,7 @@ func runNmapSpoof(ip, outputDir string) {
     // Run nmap command
     go func() {
         defer close(nmapDone) // Signal that nmap is done when the function returns
-        cmd := exec.Command("nmap", "-sV", "-sC", "-O", "-p1-1000", "-A", "--open", "--reason", "--stats-every", "30s", "-oA", outputDir+"nmap_output_"+ip, "-f", "--spoof-mac", "0", "--script", "vuln", ip)
+        cmd := exec.Command("nmap", "-sS", "-sC", "-O", "-p1-1000", "--open", "--reason", "--stats-every", "30s", "-oA", outputDir+"nmap_output_"+ip, "-f", "--spoof-mac", "00:00:00:00:00:00", "--script", "vuln", ip)
         fmt.Println(Red + "------------------------------------------------------------")
         cmd.Stdout = os.Stdout
         fmt.Println("------------------------------------------------------------" + Reset)
@@ -227,8 +227,8 @@ func runNmapSpoof(ip, outputDir string) {
 }
 
 func runNmapQuick(ip string) {
-    fmt.Printf("Using nmap " + Green + "Quick Scan" + Reset + " for IP " + Red + ">> " + Reset + "%s\n", Red+ip+Reset)
-    cmd := exec.Command("nmap", "-T4", "-p0-", ip)
+    fmt.Printf("Using nmap " + Green + "Quick Scan" + Reset + " for IP (ALL PORTS , UDP , TCP , ICMB)" + Red + ">> " + Reset + "%s\n", Red+ip+Reset)
+    cmd := exec.Command("nmap", "-T4", "-sS", "-PE", "-PS", "-PA", "-PP", "-PM", "-p0-", ip)
     fmt.Println(Red + "------------------------------------------------------------")
     cmd.Stdout = os.Stdout
     fmt.Println("------------------------------------------------------------" + Reset)
@@ -416,7 +416,7 @@ func MassiveScan(ip, outputDir string) string {
     var output bytes.Buffer // Buffer to collect output
     fmt.Printf("Starting " + Green + "Scan" + Reset + " for IP " + Red + ">> " + Reset + "%s\n", Red+ip+Reset)
     outputFile := outputDir + ip + ".txt"
-    cmd := exec.Command("nmap", "-sV", "-T5", "-A", "--open", "-oA", outputFile, "--script", "vuln", ip)
+    cmd := exec.Command("nmap", "-T5", "-A", "--open", "-oA", outputFile, ip)
     fmt.Println(Green + "scanning " + Reset + " ..." + Red)
     cmd.Stdout = &output // Redirect command output to buffer
     fmt.Println("------------------------------------------------------------" + Reset)
