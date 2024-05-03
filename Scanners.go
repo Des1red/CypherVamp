@@ -372,7 +372,25 @@ func ScanFile() {
 
     // Print the output at the end
     fmt.Println(outputBuffer.String())
+
+	 // Combine the XML files into one
+	 combinedXMLFile := outputDir + "combined.xml"
+	 cmd := exec.Command("cat", outputDir+"/*.xml")
+	 xmlFile, err := os.Create(combinedXMLFile)
+	 if err != nil {
+		 fmt.Println("Error creating combined XML file:", err)
+		 return
+	 }
+	 defer xmlFile.Close()
+ 
+	 cmd.Stdout = xmlFile
+	 if err := cmd.Run(); err != nil {
+		 fmt.Println("Error combining XML files:", err)
+		 return
+	 }
+	 fmt.Println("Combined XML file created successfully:", combinedXMLFile)
 }
+
 
 func readIPListFromFile(filename string) ([]string, error) {
 	file, err := os.Open(filename)
