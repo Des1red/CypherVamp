@@ -19,11 +19,14 @@ Cypher is an indispensable tool for security professionals seeking to bolster th
 
 ## Installation
 
-TODO: Add installation instructions here.
+Give permissions to installer : chmod +x installer.sh
+Run the installer : sudo ./installer.sh
 
 ## Usage
 
-TODO: Add usage instructions and examples here.
+cypher --help 
+cypher -v
+Accepts one option
 
 ## Contributing
 
