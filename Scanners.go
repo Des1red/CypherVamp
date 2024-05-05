@@ -11,6 +11,7 @@ import (
 	"bufio"
 	"bytes"
 	"path/filepath"
+	"strconv"
 )
 
 // COLORS
@@ -21,7 +22,7 @@ const (
 )
 
 func main() {
-	// add args such as --help/-h , -n/--network-scan for network scan(do it in new terminal) , -v for vamp(should be the scanners) /if no arguments return msg: for help type cypher --help. 
+
 	if len(os.Args) != 2 {
 		fmt.Println("Usage: cypher [options]")
 		return
@@ -171,22 +172,37 @@ func runNmap(ip, outputDir string) {
     }
 }
 
+
 func runNmapAggressive(ip, outputDir string, done chan<- bool) {
-    fmt.Printf("Using nmap " + Green + "Aggressive Scan" + Reset + " for IP first 10000 ports" + Red + ">> " + Reset + "%s\n", Red+ip+Reset)
-    cmd := exec.Command("nmap", "-sV", "-sC", "-O", "-p1-10000", "--open", "--stats-every", "30s", "-oA", outputDir+"nmap_output_"+ip, "--script", "vuln", ip)
+    fmt.Print("Ports (max port, empty for default): ")
+    var ports string
+    fmt.Scanln(&ports)
+    if len(ports) == 0 {
+        ports = "10000"
+    } else {
+        // Validate if the input is a number
+        if _, err := strconv.Atoi(ports); err != nil {
+            fmt.Println(Red + "Invalid input. Port must be a number." + Reset)
+            done <- false // Signal that the nmap scan is done with an error
+            return
+        }
+    }
+    fmt.Printf("Using nmap "+Green+"Aggressive Scan"+Reset+" for IP first %s ports"+Red+">> "+Reset+"%s\n",
+        Green+ports+Reset, Red+ip+Reset)
+    cmd := exec.Command("nmap", "-sV", "-sC", "-O", "-p1-"+ports, "--open", "--stats-every", "30s",
+        "-oA", outputDir+"nmap_output_"+ip, "--script", "vuln", ip)
     fmt.Println(Red + "------------------------------------------------------------")
     cmd.Stdout = os.Stdout
     fmt.Println("------------------------------------------------------------" + Reset)
 
     if err := cmd.Run(); err != nil {
-        fmt.Println(Red+"could not run nmap command:", err, Reset)
+        fmt.Println(Red + "could not run nmap command:", err, Reset)
     }
     fmt.Println(Red + " =============================================================" + Reset)
 
     // Signal that the nmap scan is done
     done <- true
 }
-
 func runNmapSpoof(ip, outputDir string) {
     fmt.Printf("Using nmap with " + Green + "Spoofed Mac for IP " + Red + ">> " + Reset + "%s\n", Red+ip+Reset)
 
