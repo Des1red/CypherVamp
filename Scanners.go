@@ -187,10 +187,8 @@ func runNmapAggressive(ip, outputDir string, done chan<- bool) {
             return
         }
     }
-    fmt.Printf("Using nmap "+Green+"Aggressive Scan"+Reset+" for IP first %s ports"+Red+">> "+Reset+"%s\n",
-        Green+ports+Reset, Red+ip+Reset)
-    cmd := exec.Command("nmap", "-sV", "-sC", "-O", "-p1-"+ports, "--open", "--stats-every", "30s",
-        "-oA", outputDir+"nmap_output_"+ip, "--script", "vuln", ip)
+    fmt.Printf("Using nmap "+Green+"Aggressive Scan"+Reset+" for IP first %s ports"+Red+">> "+Reset+"%s\n", Green+ports+Reset, Red+ip+Reset)
+    cmd := exec.Command("nmap", "-A", "-sC", "-p1-"+ports, "--open", "--stats-every", "30s", "-oA", outputDir+"nmap_output_"+ip, ip)
     fmt.Println(Red + "------------------------------------------------------------")
     cmd.Stdout = os.Stdout
     fmt.Println("------------------------------------------------------------" + Reset)
@@ -203,6 +201,7 @@ func runNmapAggressive(ip, outputDir string, done chan<- bool) {
     // Signal that the nmap scan is done
     done <- true
 }
+
 func runNmapSpoof(ip, outputDir string) {
     fmt.Printf("Using nmap with " + Green + "Spoofed Mac for IP " + Red + ">> " + Reset + "%s\n", Red+ip+Reset)
 
@@ -211,7 +210,7 @@ func runNmapSpoof(ip, outputDir string) {
     // Run nmap command
     go func() {
         defer close(nmapDone) // Signal that nmap is done when the function returns
-        cmd := exec.Command("nmap", "-sS", "-sC", "-O", "-p1-1000", "--open", "--reason", "--stats-every", "30s", "-oA", outputDir+"nmap_output_"+ip, "-f", "--spoof-mac", "00:00:00:00:00:00", "--script", "vuln", ip)
+        cmd := exec.Command("nmap", "-sS", "-O", "-p1-1000", "--open", "--reason", "--stats-every", "30s", "-oA", outputDir+"nmap_output_"+ip, "-f", "--spoof-mac", "00:00:00:00:00:00", "--script", "vuln", ip)
         fmt.Println(Red + "------------------------------------------------------------")
         cmd.Stdout = os.Stdout
         fmt.Println("------------------------------------------------------------" + Reset)
@@ -244,8 +243,8 @@ func runNmapSpoof(ip, outputDir string) {
 }
 
 func runNmapQuick(ip string) {
-    fmt.Printf("Using nmap " + Green + "Quick Scan" + Reset + " for IP (ALL PORTS , UDP , TCP , ICMB)" + Red + ">> " + Reset + "%s\n", Red+ip+Reset)
-    cmd := exec.Command("nmap", "-T4", "-sS", "-PE", "-PS", "-PA", "-PP", "-PM", "-p0-", ip)
+    fmt.Printf("Using nmap " + Green + "Quick Scan" + Reset + " for IP  " + Red + ">> " + Reset + "%s\n", Red+ip+Reset)
+    cmd := exec.Command("nmap", "-T5", "-p0-", ip)
     fmt.Println(Red + "------------------------------------------------------------")
     cmd.Stdout = os.Stdout
     fmt.Println("------------------------------------------------------------" + Reset)
@@ -259,13 +258,23 @@ func runNmapQuick(ip string) {
 func runNikto(ip, outputDir string) {
     fmt.Printf("Using Nikto for IP " + Red + ">> " + Reset + "%s\n", Green+ip+Reset)
     // Specify the output directory path along with the filename
-    niktoCmd := exec.Command("nikto", "-h", ip, "-ssl", "-Format", "txt", "-maxtime", "300", "-Tuning", "123bde", "-output", outputDir+"nikto_output_"+ip+".txt")
-    niktoCmd.Stdout = os.Stdout
+    outputFilePath := outputDir + "nikto_output_" + ip + ".txt"
+    outputFile, err := os.Create(outputFilePath)
+    if err != nil {
+        fmt.Println(Red + "Could not create output file:", err.Error(), Reset)
+        return
+    }
+    defer outputFile.Close()
+
+    niktoCmd := exec.Command("nikto", "-h", ip, "-ssl", "-Format", "txt", "-maxtime", "300", "-Tuning", "123bde", "-output", outputFilePath)
+    niktoCmd.Stdout = outputFile
     if err := niktoCmd.Run(); err != nil {
-        fmt.Println(Red+"Could not run Nikto command", err, Reset)
+        fmt.Println(Red + "Could not run Nikto command:", err.Error(), Reset)
+        return
     }
     fmt.Println(Red + "==============================================" + Reset)
 }
+
 // URL 
 func sanitizeURL(url string) string {
     // Replace problematic characters with underscores
@@ -469,7 +478,7 @@ func netScan() {
     }
     fmt.Println(Green + "Scanning " + Reset + subnet + Red + " >>" + Reset)
     // Define the Nmap command with the subnet address and options to scan for alive hosts with open ports
-    cmd := exec.Command("nmap", "-p80,443,21,22,20", "-oG", "-", "-T4", subnet)
+    cmd := exec.Command("nmap", "-p80,443,445,21,22,23,25,110,143,8080", "-oG", "-", "-T4", subnet)
 
     // Execute the command
     output, err := cmd.CombinedOutput()
@@ -489,7 +498,7 @@ func netScan() {
 
     // Print the scanned hosts with open ports
     for host, ports := range scannedHosts {
-        fmt.Printf("Scanned host: %s, Open Ports: %v\n", host, ports)
+        fmt.Printf("Scanned host: " + Red + "%s" + Reset + ", Open Ports: " + Green + "%v\n" + Reset, host, ports)
     }
 }
 	
