@@ -275,7 +275,7 @@ func runNikto(ip, outputDir string) {
     fmt.Println(Red + "==============================================" + Reset)
 }
 
-// Function to sanitize URL for use as a filename
+// sanitizeURL sanitizes the URL for use as a filename
 func sanitizeURL(url string) string {
 	// Replace problematic characters with underscores
 	sanitized := strings.ReplaceAll(url, "://", "_")
@@ -284,78 +284,91 @@ func sanitizeURL(url string) string {
 	return sanitized
 }
 
-// Function to scan a specific URL for vulnerabilities
-func scanURL(site, outputDir string, ctx context.Context) {
-	// Sanitize the URL to make it suitable for use as a filename
-	sanitizedURL := sanitizeURL(site)
-
-	// Create output channels for each command
-	dirbOutput := make(chan string)
-	uniscanOutput := make(chan string)
-	nmapOutput := make(chan string)
-
-	// Execute Dirb command
-	go func() {
-		defer close(dirbOutput)
-		dirbCmd := exec.CommandContext(ctx, "dirb", site, "-r", "-S", "-N", "404", "-o", outputDir+"dirb_output_"+sanitizedURL+".txt")
-		output, err := dirbCmd.CombinedOutput()
-		if err != nil {
-			dirbOutput <- fmt.Sprintf("Error executing dirb command: %v", err)
-			return
-		}
-		dirbOutput <- string(output)
-	}()
-
-	// Execute Uniscan command
-	go func() {
-		defer close(uniscanOutput)
-		uniscanCmd := exec.CommandContext(ctx, "uniscan", "-u", site, "-qwe", "-o", outputDir+"uniscan_output_"+sanitizedURL+".txt")
-		output, err := uniscanCmd.CombinedOutput()
-		if err != nil {
-			uniscanOutput <- fmt.Sprintf("Error executing uniscan command: %v", err)
-			return
-		}
-		uniscanOutput <- string(output)
-	}()
-
-	// Execute Nmap command
-	go func() {
-		defer close(nmapOutput)
-		nmapCmd := exec.CommandContext(ctx, "nmap", "-p443", "--script", "http-waf-detect", "--script-args", "http-waf-detect.aggro,http-waf-detect.detectBodyChanges", site)
-		output, err := nmapCmd.CombinedOutput()
-		if err != nil {
-			nmapOutput <- fmt.Sprintf("Error executing nmap command: %v", err)
-			return
-		}
-		nmapOutput <- string(output)
-	}()
-
-	// Print output from each command sequentially
+// getSpecificURL scans a specific URL for vulnerabilities
+func getSpecificURL(ip, outputDir string) {
 	for {
-		select {
-		case output, ok := <-dirbOutput:
-			if !ok {
-				dirbOutput = nil
-				continue
+		var site string
+		fmt.Printf("Enter the URL for IP %s%s%s or press Enter to scan the next IP: ", Green, ip, Reset)
+		fmt.Scanln(&site)
+		if len(site) == 0 {
+			fmt.Println(Green + "Scanning the next IP..." + Reset)
+			break
+		}
+
+		// Create a context to potentially cancel command execution
+		ctx, cancel := context.WithCancel(context.Background())
+
+		// Sanitize the URL to make it suitable for use as a filename
+		sanitizedURL := sanitizeURL(site)
+
+		// Create output channels for each command
+		dirbOutput := make(chan string)
+		uniscanOutput := make(chan string)
+		nmapOutput := make(chan string)
+
+		// Execute Dirb command
+		go func() {
+			defer close(dirbOutput)
+			dirbCmd := exec.CommandContext(ctx, "dirb", site, "-r", "-S", "-N", "404", "-o", outputDir+"dirb_output_"+sanitizedURL+".txt")
+			output, err := dirbCmd.CombinedOutput()
+			if err != nil {
+				dirbOutput <- fmt.Sprintf("Error executing dirb command: %v", err)
+				return
 			}
-			fmt.Printf("Dirb output for URL %s>>%s\n%s\n", Red, Reset, output)
-		case output, ok := <-uniscanOutput:
-			if !ok {
-				uniscanOutput = nil
-				continue
+			dirbOutput <- string(output)
+		}()
+
+		// Execute Uniscan command
+		go func() {
+			defer close(uniscanOutput)
+			uniscanCmd := exec.CommandContext(ctx, "uniscan", "-u", site, "-qwe", "-o", outputDir+"uniscan_output_"+sanitizedURL+".txt")
+			output, err := uniscanCmd.CombinedOutput()
+			if err != nil {
+				uniscanOutput <- fmt.Sprintf("Error executing uniscan command: %v", err)
+				return
 			}
-			fmt.Printf("Uniscan output for URL %s>>%s\n%s\n", Red, Reset, output)
-		case output, ok := <-nmapOutput:
-			if !ok {
-				nmapOutput = nil
-				continue
+			uniscanOutput <- string(output)
+		}()
+
+		// Execute Nmap command
+		go func() {
+			defer close(nmapOutput)
+			nmapCmd := exec.CommandContext(ctx, "nmap", "-p443", "--script", "http-waf-detect", "--script-args", "http-waf-detect.aggro,http-waf-detect.detectBodyChanges", site)
+			output, err := nmapCmd.CombinedOutput()
+			if err != nil {
+				nmapOutput <- fmt.Sprintf("Error executing nmap command: %v", err)
+				return
 			}
-			fmt.Printf("Nmap output for URL %s>>%s\n%s\n", Red, Reset, output)
-		case <-ctx.Done():
-			return
+			nmapOutput <- string(output)
+		}()
+
+		// Print output from each command sequentially
+		for {
+			select {
+			case output, ok := <-dirbOutput:
+				if !ok {
+					dirbOutput = nil
+					continue
+				}
+				fmt.Printf("Dirb output for URL %s>>%s\n%s\n", Red, Reset, output)
+			case output, ok := <-uniscanOutput:
+				if !ok {
+					uniscanOutput = nil
+					continue
+				}
+				fmt.Printf("Uniscan output for URL %s>>%s\n%s\n", Red, Reset, output)
+			case output, ok := <-nmapOutput:
+				if !ok {
+					nmapOutput = nil
+					continue
+				}
+				fmt.Printf("Nmap output for URL %s>>%s\n%s\n", Red, Reset, output)
+			case <-ctx.Done():
+				cancel()
+				return
+			}
 		}
 	}
-
 }
 // ??
 
