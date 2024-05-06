@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"net/url"
+	"time"
 )
 
 // COLORS
@@ -20,6 +21,7 @@ const (
 	Red   = "\033[31m"
 	Green = "\033[32m"
 	Reset = "\033[0m"
+	Yellow = "\033[33m"
 )
 
 func main() {
@@ -327,6 +329,21 @@ func getSpecificURL(ip, outputDir string) {
 		uniscanOutput := make(chan string)
 		nmapOutput := make(chan string)
 
+		// Start goroutine to print animated loading dots
+		loadingDone := make(chan struct{})
+		go func() {
+			defer close(loadingDone)
+			for {
+				select {
+				case <-loadingDone:
+					return
+				default:
+					fmt.Printf("\r%s%s", Yellow+"Program still running..."+dots()+" "+Reset, Green)
+					time.Sleep(500 * time.Millisecond)
+				}
+			}
+		}()
+
 		// Execute Dirb command
 		go func() {
 			defer close(dirbOutput)
@@ -371,31 +388,37 @@ func getSpecificURL(ip, outputDir string) {
 					dirbOutput = nil
 					continue
 				}
-				fmt.Printf("Dirb output for URL %s>>%s\n%s\n", Red, Reset, output)
+				fmt.Printf("\r%s\n", output) // Print output without interrupting the loading message
 			case output, ok := <-uniscanOutput:
 				if !ok {
 					uniscanOutput = nil
 					continue
 				}
-				fmt.Printf("Uniscan output for URL %s>>%s\n%s\n", Red, Reset, output)
+				fmt.Printf("\r%s\n", output) // Print output without interrupting the loading message
 			case output, ok := <-nmapOutput:
 				if !ok {
 					nmapOutput = nil
 					continue
 				}
-				fmt.Printf("Nmap output for URL %s>>%s\n%s\n", Red, Reset, output)
+				fmt.Printf("\r%s\n", output) // Print output without interrupting the loading message
 			case <-ctx.Done():
 				// Cancel ongoing commands if the context is cancelled
 				cancel()
 				<-dirbOutput // Drain the channel to avoid goroutine leak
 				<-uniscanOutput
 				<-nmapOutput
+				close(loadingDone) // Stop the loading animation
 				return
 			}
 		}
 	}
 }
 
+// Function to generate animated loading dots
+func dots() string {
+	dots := []string{"", ".", "..", "..."}
+	return dots[int(time.Now().UnixNano()/500000000)%4]
+}
 
 // ??
 
