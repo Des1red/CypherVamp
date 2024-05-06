@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"path/filepath"
 	"strconv"
+	"net/url"
 )
 
 // COLORS
@@ -154,7 +155,6 @@ func runNmap(ip, outputDir string) {
 
     // Create channels for synchronization
     done := make(chan bool, 2)
-    
 
     // Close the done channel when the function returns
     defer close(done)
@@ -275,7 +275,7 @@ func runNikto(ip, outputDir string) {
     fmt.Println(Red + "==============================================" + Reset)
 }
 
-// sanitizeURL sanitizes the URL for use as a filename
+// Function to sanitize URL for use as a filename
 func sanitizeURL(url string) string {
 	// Replace problematic characters with underscores
 	sanitized := strings.ReplaceAll(url, "://", "_")
@@ -284,7 +284,20 @@ func sanitizeURL(url string) string {
 	return sanitized
 }
 
-// getSpecificURL scans a specific URL for vulnerabilities
+// Function to extract IP address from URL
+func extractIPAddress(rawurl string) (string, error) {
+	u, err := url.Parse(rawurl)
+	if err != nil {
+		return "", err
+	}
+	host := u.Hostname()
+	if host == "" {
+		return "", fmt.Errorf("invalid URL: missing hostname")
+	}
+	return host, nil
+}
+
+// Function to scan a specific URL for vulnerabilities
 func getSpecificURL(ip, outputDir string) {
 	for {
 		var site string
@@ -300,6 +313,14 @@ func getSpecificURL(ip, outputDir string) {
 
 		// Sanitize the URL to make it suitable for use as a filename
 		sanitizedURL := sanitizeURL(site)
+
+		// Extract IP address from URL
+		targetIP, err := extractIPAddress(site)
+		if err != nil {
+			fmt.Println(Red+"Error extracting IP address:", err, Reset)
+			cancel()
+			continue
+		}
 
 		// Create output channels for each command
 		dirbOutput := make(chan string)
@@ -333,7 +354,7 @@ func getSpecificURL(ip, outputDir string) {
 		// Execute Nmap command
 		go func() {
 			defer close(nmapOutput)
-			nmapCmd := exec.CommandContext(ctx, "nmap", "-p443", "--script", "http-waf-detect", "--script-args", "http-waf-detect.aggro,http-waf-detect.detectBodyChanges", site)
+			nmapCmd := exec.CommandContext(ctx, "nmap", "-p443", "--script", "http-waf-detect", "--script-args", "http-waf-detect.aggro,http-waf-detect.detectBodyChanges", targetIP)
 			output, err := nmapCmd.CombinedOutput()
 			if err != nil {
 				nmapOutput <- fmt.Sprintf("Error executing nmap command: %v", err)
@@ -364,12 +385,18 @@ func getSpecificURL(ip, outputDir string) {
 				}
 				fmt.Printf("Nmap output for URL %s>>%s\n%s\n", Red, Reset, output)
 			case <-ctx.Done():
+				// Cancel ongoing commands if the context is cancelled
 				cancel()
+				<-dirbOutput // Drain the channel to avoid goroutine leak
+				<-uniscanOutput
+				<-nmapOutput
 				return
 			}
 		}
 	}
 }
+
+
 // ??
 
 
