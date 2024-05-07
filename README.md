@@ -30,9 +30,13 @@ Run the installer : sudo ./installer.sh
 Cypher supports the following command-line options:
 
 -h, --help: Display the usage instructions.
+
 -v: Start Cypher scanner for a specific URL/IP.
+
 -f, --file: Run Cypher with your own file containing targets.
+
 -nS, --net-scan: Scan the local network for targets.
+
 -m: Enter network monitor mode.
 
 ## Examples
