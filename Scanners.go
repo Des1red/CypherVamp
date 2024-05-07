@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"net/url"
 	"time"
+	"unicode"
 )
 
 // COLORS
@@ -189,7 +190,7 @@ func runNmapAggressive(ip, outputDir string, done chan<- bool) {
         }
     }
     fmt.Printf("Using nmap "+Green+"Aggressive Scan"+Reset+" for IP first %s ports"+Red+">> "+Reset+"%s\n", Green+ports+Reset, Red+ip+Reset)
-    cmd := exec.Command("nmap", "-A", "-sC", "-p1-"+ports, "--open", "--stats-every", "30s", "-oA", outputDir+"nmap_output_"+ip, ip)
+    cmd := exec.Command("nmap", "-Pn", "-A", "-sC", "-p1-"+ports, "--open", "--stats-every", "30s", "-oA", outputDir+"nmap_output_"+ip, ip)
     fmt.Println(Red + "------------------------------------------------------------")
     cmd.Stdout = os.Stdout
     fmt.Println("------------------------------------------------------------" + Reset)
@@ -211,7 +212,7 @@ func runNmapSpoof(ip, outputDir string) {
     // Run nmap command
     go func() {
         defer close(nmapDone) // Signal that nmap is done when the function returns
-        cmd := exec.Command("nmap", "-sS", "-O", "-p1-1000", "--open", "--reason", "--stats-every", "30s", "-oA", outputDir+"nmap_output_"+ip, "-f", "--spoof-mac", "00:00:00:00:00:00", "--script", "vuln", ip)
+        cmd := exec.Command("nmap", "-Pn", "-sS", "-O", "-p1-1000", "--open", "--reason", "--stats-every", "30s", "-oA", outputDir+"nmap_output_"+ip, "-f", "--spoof-mac", "00:00:00:00:00:00", "--script", "vuln", ip)
         fmt.Println(Red + "------------------------------------------------------------")
         cmd.Stdout = os.Stdout
         fmt.Println("------------------------------------------------------------" + Reset)
@@ -245,9 +246,7 @@ func runNmapSpoof(ip, outputDir string) {
 
 func runNmapQuick(ip string) {
     fmt.Printf("Using nmap " + Green + "Quick Scan" + Reset + " for IP  " + Red + ">> " + Reset + "%s\n", Red+ip+Reset)
-    cmd := exec.Command("nmap", "-T5", "--open", "-p0-", ip)
-    fmt.Println(Red + "------------------------------------------------------------")
-    fmt.Println("------------------------------------------------------------" + Reset)
+    cmd := exec.Command("nmap","-T5", "--open", "-Pn", "-p0-", ip)
 
     // Run the first Nmap scan
     output, err := cmd.CombinedOutput()
@@ -265,6 +264,7 @@ func runNmapQuick(ip string) {
         cmd = exec.Command("nmap", "-sC", "-A", "--script", "vuln", "-p"+openPorts, ip)
         cmd.Stdout = os.Stdout
         cmd.Stderr = os.Stderr
+
         if err := cmd.Run(); err != nil {
             fmt.Println(Red+"could not run nmap command:", err, Reset)
             return
@@ -286,22 +286,35 @@ func extractOpenPorts(output []byte) string {
     // Split the output into lines
     lines := strings.Split(outputStr, "\n")
 
+    // Flag to indicate if we've encountered the header line
+    headerFound := false
+
     // Iterate over each line
     for _, line := range lines {
-        // Check if the line contains "/open/"
-        if strings.Contains(line, "/open/") {
-            // Extract port information from the line
-            fields := strings.Fields(line)
-            for _, field := range fields {
-                // Check if the field contains "/open/"
-                if strings.Contains(field, "/open/") {
-                    // Extract the port number
-                    port := strings.Split(field, "/")[0]
-                    // Append the port number to the openPorts string
-                    openPorts += port + ","
-                }
+        // Check if the line contains the header indicating port information
+        if strings.HasPrefix(line, "PORT") {
+            headerFound = true
+            continue
+        }
+
+        // Skip empty lines and lines that don't contain port information
+        if line == "" || !headerFound {
+            continue
+        }
+
+        // Extract port number from the line
+        port := strings.Fields(line)[0]
+
+        // Extract only the digits from the port string
+        portNumber := ""
+        for _, char := range port {
+            if unicode.IsDigit(char) {
+                portNumber += string(char)
             }
         }
+
+        // Append the port number to the openPorts string
+        openPorts += portNumber + ","
     }
 
     // Remove trailing comma, if any
