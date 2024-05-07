@@ -18,6 +18,8 @@ Cypher is an advanced IP reconnaissance tool designed for security professionals
 Cypher is an indispensable tool for security professionals seeking to bolster their cybersecurity defenses, identify vulnerabilities, and mitigate potential threats effectively.
 
 ## Installation
+To install Cypher, clone the repository to your local machine:
+https://github.com/Des1red/CypherVamp.git
 
 Give permissions to installer : chmod +x installer.sh
 
@@ -25,9 +27,24 @@ Run the installer : sudo ./installer.sh
 
 ## Usage
 
-cypher --help 
-cypher -v
-Accepts one option
+Cypher supports the following command-line options:
+
+-h, --help: Display the usage instructions.
+-v: Start Cypher scanner for a specific URL/IP.
+-f, --file: Run Cypher with your own file containing targets.
+-nS, --net-scan: Scan the local network for targets.
+-m: Enter network monitor mode.
+
+## Examples
+
+Scan a specific URL/IP: cypher -v
+
+Run Cypher with a file containing targets: cypher -f targetfile.txt
+
+Scan the local network for targets: cypher -nS
+
+Enter network monitor mode: cypher -m
+
 
 ## Contributing
 
