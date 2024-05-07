@@ -32,7 +32,30 @@ Cypher supports the following command-line options:
 -h, --help: Display the usage instructions.
 
 -v: Start Cypher scanner for a specific URL/IP.
+  ## Aggresive Scan Option :   
+  
+  - **Port Specification**: 
+  - The user is prompted to specify the maximum port number to be scanned. If no input is provided, the default maximum port number is set to 10,000.
+    
+  - This allows customization of the port range to be scanned based on user input.
+   
+  - This aggressive scan combines various scanning techniques to provide comprehensive information about the target network, including open ports, detected services, operating system details, and potential vulnerabilities. Adjust the port range according to your specific scanning requirements and target environment.
 
+ ## Spoofed Scan Option : 
+ 
+ - The scan uses a spoofed MAC address to disguise the source of network packets. This can help in evading detection or bypassing security measures that filter or block traffic based on MAC addresses.
+   
+ - This scan combines stealthy scanning techniques with the use of a spoofed MAC address to gather information about the target network, including open ports, detected services, and the target's operating system.
+   
+ - Use this scan cautiously and responsibly, as spoofing techniques may violate network policies or laws in certain jurisdictions.
+
+## Quick Scan Option :
+   - The initial scan, known as a quick scan, aims to quickly identify open ports on the target system.
+   - 
+  **Second Scan (if open ports are found)**:
+  - If the quick scan detects open ports on the target system, a second scan is performed to gather more detailed information about the services running on those ports.
+  - This two-step approach optimizes the scanning process by initially focusing on identifying open ports quickly and then conducting a more detailed analysis of the services running on those ports, enhancing the overall efficiency and effectiveness of the reconnaissance process.
+    
 -f, --file: Run Cypher with your own file containing targets.
 
 -nS, --net-scan: Scan the local network for targets.
