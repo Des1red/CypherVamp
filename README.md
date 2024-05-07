@@ -32,6 +32,13 @@ Cypher supports the following command-line options:
 -h, --help: Display the usage instructions.
 
 -v: Start Cypher scanner for a specific URL/IP.
+
+-f, --file: Run Cypher with your own file containing targets.
+
+-nS, --net-scan: Scan the local network for targets.
+
+-m: Enter network monitor mode.
+
   ## Aggresive Scan Option :   
   
   - **Port Specification**: 
@@ -51,16 +58,10 @@ Cypher supports the following command-line options:
 
 ## Quick Scan Option :
    - The initial scan, known as a quick scan, aims to quickly identify open ports on the target system.
-   - 
+
   **Second Scan (if open ports are found)**:
   - If the quick scan detects open ports on the target system, a second scan is performed to gather more detailed information about the services running on those ports.
   - This two-step approach optimizes the scanning process by initially focusing on identifying open ports quickly and then conducting a more detailed analysis of the services running on those ports, enhancing the overall efficiency and effectiveness of the reconnaissance process.
-    
--f, --file: Run Cypher with your own file containing targets.
-
--nS, --net-scan: Scan the local network for targets.
-
--m: Enter network monitor mode.
 
 ## Examples
 
