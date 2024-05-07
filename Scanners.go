@@ -65,8 +65,7 @@ func help() {
 }
 
 
-// Vamp from here to ???
-
+// Vamp //
 func vamp() {
 	fmt.Printf(Icon())
 
@@ -104,11 +103,11 @@ func vamp() {
 	fmt.Println("All scans completed.")
 }
 
-
+//validating ip
 func isValidIP(ip string) bool {
 	return net.ParseIP(ip) != nil
 }
-
+//running all scanners 
 func processIP(ip, outputDir string) {
 	fmt.Printf("Target set to " + Red + ">> %s\n", Green+ip+Reset)
 	if isHostAlive(ip) {
@@ -116,10 +115,10 @@ func processIP(ip, outputDir string) {
 		runNikto(ip, outputDir)
 		getSpecificURL(ip, outputDir)
 	} else {
-		fmt.Printf("%s is 6 feet under :(.\n", ip)
+		fmt.Printf("%s is 6 feet under :(.\n", Green+ip+Reset)
 	}
 }
-
+//checking if host is alive
 func isHostAlive(ip string) bool {
 	fmt.Println("Checking if target is reachable")
 	check := exec.Command("ping", "-c", "5", ip)
@@ -130,6 +129,7 @@ func isHostAlive(ip string) bool {
 	return true
 }
 
+//nmap options menu
 func runNmap(ip, outputDir string) {
     // Define the accepted options
     accept := map[string]bool{
@@ -173,8 +173,7 @@ func runNmap(ip, outputDir string) {
         fmt.Println("Invalid scan type")
     }
 }
-
-
+//Nmap options //
 func runNmapAggressive(ip, outputDir string, done chan<- bool) {
     fmt.Print("Ports (max port, empty for default): ")
     var ports string
@@ -246,17 +245,75 @@ func runNmapSpoof(ip, outputDir string) {
 
 func runNmapQuick(ip string) {
     fmt.Printf("Using nmap " + Green + "Quick Scan" + Reset + " for IP  " + Red + ">> " + Reset + "%s\n", Red+ip+Reset)
-    cmd := exec.Command("nmap", "-T5", "-p0-", ip)
+    cmd := exec.Command("nmap", "-T5", "--open", "-p0-", ip)
     fmt.Println(Red + "------------------------------------------------------------")
-    cmd.Stdout = os.Stdout
     fmt.Println("------------------------------------------------------------" + Reset)
 
-    if err := cmd.Run(); err != nil {
+    // Run the first Nmap scan
+    output, err := cmd.CombinedOutput()
+    if err != nil {
         fmt.Println(Red+"could not run nmap command:", err, Reset)
+        return
     }
+
+    // Parse the output of the first scan to extract open ports
+    openPorts := extractOpenPorts(output)
+
+    // Perform a second Nmap scan only on the open ports
+    if len(openPorts) > 0 {
+        fmt.Println(Green + "Performing second scan on open ports:" + Reset)
+        cmd = exec.Command("nmap", "-sC", "-A", "--script", "vuln", "-p"+openPorts, ip)
+        cmd.Stdout = os.Stdout
+        cmd.Stderr = os.Stderr
+        if err := cmd.Run(); err != nil {
+            fmt.Println(Red+"could not run nmap command:", err, Reset)
+            return
+        }
+    } else {
+        fmt.Println(Green + "No open ports found, skipping second scan." + Reset)
+    }
+
     fmt.Println(Red + " =============================================================" + Reset)
 }
 
+// Function to extract open ports from Nmap scan output for quickscan
+func extractOpenPorts(output []byte) string {
+    openPorts := ""
+
+    // Convert the byte slice to a string
+    outputStr := string(output)
+
+    // Split the output into lines
+    lines := strings.Split(outputStr, "\n")
+
+    // Iterate over each line
+    for _, line := range lines {
+        // Check if the line contains "/open/"
+        if strings.Contains(line, "/open/") {
+            // Extract port information from the line
+            fields := strings.Fields(line)
+            for _, field := range fields {
+                // Check if the field contains "/open/"
+                if strings.Contains(field, "/open/") {
+                    // Extract the port number
+                    port := strings.Split(field, "/")[0]
+                    // Append the port number to the openPorts string
+                    openPorts += port + ","
+                }
+            }
+        }
+    }
+
+    // Remove trailing comma, if any
+    if len(openPorts) > 0 {
+        openPorts = openPorts[:len(openPorts)-1]
+    }
+
+    return openPorts
+}
+// End of nmap options //
+
+// URL Scaanner //
 func runNikto(ip, outputDir string) {
     fmt.Printf("Using Nikto for IP " + Red + ">> " + Reset + "%s\n", Green+ip+Reset)
     // Specify the output directory path along with the filename
@@ -419,11 +476,9 @@ func dots() string {
 	dots := []string{"", ".", "..", "..."}
 	return dots[int(time.Now().UnixNano()/500000000)%4]
 }
+// End of URL Scanners //
 
-// ??
-
-
-// Scan ip from file concurently
+// Scan ips from file concurently
 func ScanFile() {
     fmt.Print("File with targets " + Red + ">> " + Reset)
     var fileToScan string
@@ -545,8 +600,9 @@ func MassiveScan(ip, outputDir string) string {
 
     return output.String() // Return output as string
 }
+// End of File scan //
 
-// NetScan from here to ****
+// Subnet Scanner //
 func netScan() {
     var subnet string
     fmt.Print("Enter the subnet address (e.g., 192.168.1.0/24, empty for default): ")
@@ -610,10 +666,9 @@ func parseNmapOutput(output string) map[string][]string {
 
     return scannedHosts
 }
-// ****
+// End of Subnet scanner //
 
-// Ntwork Monitoring
-
+// Network Monitoring //
 func startMonitorMode(adapter string) error {
 	fmt.Println("Starting Monitor mode.")
 	cmd := exec.Command("airmon-ng", "start", adapter)
