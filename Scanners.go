@@ -71,7 +71,7 @@ func vamp() {
 	fmt.Printf(Icon())
 
 	// Define the directory path to save the output files
-	outputDir := "SCAN_results/"
+	outputDir := "SCAN_RESULTS/"
 
 	// Create the directory if it doesn't exist
 	if _, err := os.Stat(outputDir); os.IsNotExist(err) {
@@ -167,9 +167,9 @@ func runNmap(ip, outputDir string) {
     case "a", "A":
         runNmapAggressive(ip, outputDir, done)
     case "s", "S":
-        runNmapSpoof(ip, outputDir,)
+        runNmapSpoof(ip, outputDir)
     case "q", "Q":
-        runNmapQuick(ip)
+        runNmapQuick(ip,  outputDir)
     default:
         fmt.Println("Invalid scan type")
     }
@@ -190,7 +190,7 @@ func runNmapAggressive(ip, outputDir string, done chan<- bool) {
         }
     }
     fmt.Printf("Using nmap "+Green+"Aggressive Scan"+Reset+" for IP first %s ports"+Red+">> "+Reset+"%s\n", Green+ports+Reset, Red+ip+Reset)
-    cmd := exec.Command("nmap", "-Pn", "-A", "-sC", "-p1-"+ports, "--open", "--stats-every", "30s", "-oA", outputDir+"nmap_output_"+ip, ip)
+    cmd := exec.Command("nmap", "-Pn", "-A", "-sC", "-p1-"+ports, "--open", "--stats-every", "30s", "-oA", outputDir+"AggresiveScan_"+ip, ip)
     fmt.Println(Red + "------------------------------------------------------------")
     cmd.Stdout = os.Stdout
     fmt.Println("------------------------------------------------------------" + Reset)
@@ -244,7 +244,7 @@ func runNmapSpoof(ip, outputDir string) {
     }
 }
 
-func runNmapQuick(ip string) {
+func runNmapQuick(ip , outputDir string) {
     fmt.Printf("Using nmap " + Green + "Quick Scan" + Reset + " for IP  " + Red + ">> " + Reset + "%s\n", Red+ip+Reset)
     cmd := exec.Command("nmap","-T5", "--open", "-Pn", "-p0-", ip)
 
@@ -261,7 +261,7 @@ func runNmapQuick(ip string) {
     // Perform a second Nmap scan only on the open ports
     if len(openPorts) > 0 {
         fmt.Println(Green + "Performing second scan on open ports: "+ Reset +openPorts)
-        cmd = exec.Command("nmap", "-sC", "-A", "--script", "vuln", "-p"+openPorts, ip)
+        cmd = exec.Command("nmap", "-sC", "-A", "--script", "vuln", "-p"+openPorts,"-oA", outputDir+"QuickScan_"+ip)
         cmd.Stdout = os.Stdout
         cmd.Stderr = os.Stderr
 
