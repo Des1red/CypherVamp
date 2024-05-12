@@ -728,8 +728,48 @@ func startMonitorMode(adapter string) string {
 	}
 
 	fmt.Println("Monitor mode started " + Green + "successfully" + Reset + ".")
-	adapter = adapter+"mon"
+	adapter = findNewAdapter(adapter)
+	if err!= nil {
+		fmt.Println(Red + "Error " + Reset + "starting monitor mode:", err)
+		return "operation failed"
+	}
+
 	return adapter
+}
+
+func findNewAdapter(adapter string) string {
+    cmdIWConfig := exec.Command("iwconfig")
+    cmdGrep := exec.Command("grep", adapter)
+
+    // Set up a pipe to connect the stdout of cmdIWConfig to the stdin of cmdGrep
+    cmdGrep.Stdin, _ = cmdIWConfig.StdoutPipe()
+
+    // Set up output capturing for cmdGrep
+    var grepOutput bytes.Buffer
+    cmdGrep.Stdout = &grepOutput
+
+    // Start cmdGrep first to avoid a deadlock
+    if err := cmdGrep.Start(); err != nil {
+        fmt.Println(Red + "Error " + Reset + "starting grep command:", err)
+        return ""
+    }
+
+    // Run cmdIWConfig
+    if err := cmdIWConfig.Run(); err != nil {
+        fmt.Println(Red + "Error " + Reset + "running iwconfig command:", err)
+        return ""
+    }
+
+    // Wait for cmdGrep to finish
+    if err := cmdGrep.Wait(); err != nil {
+        fmt.Println(Red + "Error " + Reset + "waiting for grep command:", err)
+        return ""
+    }
+
+    // Process the output of grep to get the found adapter
+    foundAdapter := grepOutput.String()
+
+    return foundAdapter
 }
 
 func captureTraffic(adapter string) error {
