@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define the absolute path to the Scanners directory
-SCANNERS_DIR="$(pwd)/CypherVamp/Scanners"
+SCANNERS_DIR="$(pwd)/Scanners"
 
 # Check if running with root privileges
 if [[ $EUID -ne 0 ]]; then
