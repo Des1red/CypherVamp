@@ -260,7 +260,7 @@ func runNmapQuick(ip string) {
 
     // Perform a second Nmap scan only on the open ports
     if len(openPorts) > 0 {
-        fmt.Println(Green + "Performing second scan on open ports:" + Reset)
+        fmt.Println(Green + "Performing second scan on open ports: "+ Reset +openPorts)
         cmd = exec.Command("nmap", "-sC", "-A", "--script", "vuln", "-p"+openPorts, ip)
         cmd.Stdout = os.Stdout
         cmd.Stderr = os.Stderr
@@ -303,18 +303,23 @@ func extractOpenPorts(output []byte) string {
         }
 
         // Extract port number from the line
-        port := strings.Fields(line)[0]
+        fields := strings.Fields(line)
+        if len(fields) > 0 {
+            port := fields[0]
 
-        // Extract only the digits from the port string
-        portNumber := ""
-        for _, char := range port {
-            if unicode.IsDigit(char) {
-                portNumber += string(char)
+            // Extract only the digits from the port string
+            portNumber := ""
+            for _, char := range port {
+                if unicode.IsDigit(char) {
+                    portNumber += string(char)
+                }
+            }
+
+            // Append the port number to the openPorts string
+            if portNumber != "" {
+                openPorts += portNumber + ","
             }
         }
-
-        // Append the port number to the openPorts string
-        openPorts += portNumber + ","
     }
 
     // Remove trailing comma, if any
@@ -749,9 +754,9 @@ func deauthenticateTarget(BSSID , Station, newadapter string) error {
 	return launchTerminal("aireplay-ng --deauth 0 -a "+BSSID+" -c " + Station + newadapter)
 }
 
-func crackWPA(wordlistfile string) error {
+func crackWPA(wordlist, file string) error {
 	fmt.Printf("Cracking WPA KEY")
-	return launchTerminal("aircrack-ng -w "+wordlistfile+" captureWpa.cap")
+	return launchTerminal("aircrack-ng -w "+wordlist+" "+file)
 }
 
 func MonitorMode() {
@@ -790,7 +795,7 @@ func MonitorMode() {
 	}
 	
 	// Focusing on Target
-	var BSSID, channel, Station, wordlistfile string
+	var BSSID, channel, Station, wordlistfile, WpaHandshakeFile string
 
 	fmt.Print("Target BSSID: ")
 	scanner.Scan()
@@ -827,15 +832,50 @@ func MonitorMode() {
 			return
 		} 
 	}
-
-	fmt.Print("Wordlist file (leave empty for default): ")
+	// wordlist file input
+	fmt.Print("Wordlist file : ")
 	scanner.Scan()
 	wordlistfile = scanner.Text()
-	if wordlistfile == "" {
-		wordlistfile = "/pentest/passwords/wordlists/darkc0de"
+	for {
+		if _, err := os.Stat(wordlistfile); os.IsNotExist(err) {
+			fmt.Print(Red + "Error" + Reset + " File do not exist .")
+			fmt.Print("Specify file with WPA handshake (file.cap): ")
+			scanner.Scan()
+			wordlistfile = scanner.Text()
+		} else {
+			break
+		}
 	}
-
-	err = crackWPA(wordlistfile)
+	fmt.Println("File exists:", wordlistfile)
+	
+	// capture handshake file input
+	fmt.Print("Captured Files : ")
+	cmd = exec.Command("ls","|","grep","*.cap")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err = cmd.Run()
+	if err!= nil {
+		fmt.Println(Red + "Error " + Reset + "showing captured files", err)
+		return
+	}
+	fmt.Println()
+	fmt.Print("Specify file with WPA handshake (file.cap): ")
+	scanner.Scan()
+	WpaHandshakeFile = scanner.Text()
+	// validating file exists
+	for {
+		if _, err := os.Stat(WpaHandshakeFile); os.IsNotExist(err) {
+			fmt.Print(Red + "Error" + Reset + " File do not exist .")
+			fmt.Print("Specify file with WPA handshake (file.cap): ")
+			scanner.Scan()
+			WpaHandshakeFile = scanner.Text()
+		} else {
+			break
+		}
+	}
+	fmt.Println("File exists:", WpaHandshakeFile)
+	//pass files to crackWPA func
+	err = crackWPA(wordlistfile,WpaHandshakeFile)
 	if err != nil {
 		fmt.Println("Failed to crack WPA key:", err)
 		return
