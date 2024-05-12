@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Define the absolute path to the Scanners directory
+SCANNERS_DIR="$(pwd)/CypherVamp/Scanners"
+
 # Check if running with root privileges
 if [[ $EUID -ne 0 ]]; then
    echo "This script must be run as root" 
@@ -30,21 +33,19 @@ echo ""
 echo ""
 echo "Installation completed successfully"
 
-# Define the alias command
-alias cypher="/home/kali/Scanners"
-
-# Save the changes to the Bash configuration file of the current user
-echo 'alias cypher="$(pwd)/Scanners"' >> ~/.bashrc
+# Save the alias definition to the Bash configuration file
+echo "alias cypher='$SCANNERS_DIR'" >> ~/.bashrc
 
 # Check if Zsh is installed
 if [ -n "$(command -v zsh)" ]; then
-    # Save the changes to the Zsh configuration file of the current user
-   echo 'alias cypher="$(pwd)/Scanners"' >> ~/.zshrc
+    # Save the alias definition to the Zsh configuration file
+    echo "alias cypher='$SCANNERS_DIR'" >> ~/.zshrc
 fi
 
 # Apply the changes to the current shell session
 source ~/.bashrc
 source ~/.zshrc  
 
-echo "Alias 'cypher' has been set to '\"$(pwd)/Scanners\'."
+echo "Alias 'cypher' has been set to '$SCANNERS_DIR'."
 echo "3. You can now use the 'cypher' command to start the scan."
+
