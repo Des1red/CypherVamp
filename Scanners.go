@@ -31,16 +31,31 @@ func main() {
 		fmt.Println("Usage: cypher [options]")
 		return
 	}
-
+	permission := CheckIfroot()
+	if permission == false {
+		fmt.Print("You are not root. IP Scan is " + Red + "unavailable \n" + Reset)
+	}
 	switch os.Args[1] {
 	case "-h", "--help":
 		help()
 	case "-v":
-		vamp()
+		if permission == true {
+			vamp()	
+		} else {
+			return
+		}
 	case "--file", "-f" :
-		ScanFile()
+		if permission == true {
+			ScanFile()
+		} else {
+			return
+		}
 	case "-nS", "--net-scan":
-		netScan()
+		if permission == true {
+			netScan()
+		} else {
+			return
+		}
 	case "-m":
 		MonitorMode()
 	default:
@@ -48,8 +63,7 @@ func main() {
 	}
 }
 
-
-//command lines
+//Manual
 func help() {
 	fmt.Println("Help \n")
 	fmt.Println("Command line >> ")
@@ -65,9 +79,22 @@ func help() {
     fmt.Println("             Using the spoofing option for target scans might cause a dos attack depending on the specific network")
 }
 
+func CheckIfroot() bool {
+	  // Get the effective user ID of the current process
+	  euid := os.Geteuid()
+	// Check if the effective user ID is 0 (root)
+	if euid == 0 {
+		fmt.Println("The program is running as " + Green + "root" + Reset + ".")
+		return true
+	} else {
+		fmt.Println("The program is not running as root.")
+		return false
+	}
+}
 
 // Vamp //
 func vamp() {
+
 	fmt.Printf(Icon())
 
 	// Define the directory path to save the output files
