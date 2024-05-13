@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # Define the absolute path to the Scanners directory
-SCANNERS_DIR="$(pwd)/Scanners"
+SCANNERS_DIR="$(pwd)"
 
 # Check if running with root privileges
-if [[ $EUID -ne 0 ]]; then
+if [ "$(id -u)" -ne 0 ]; then
    echo "This script must be run as root" 
    exit 1
 fi
@@ -33,19 +33,34 @@ echo ""
 echo ""
 echo "Installation completed successfully"
 
-# Save the alias definition to the Bash configuration file
-echo "alias cypher='$SCANNERS_DIR'" >> ~/.bashrc
+# Variable to track if alias was successfully added to any shell
+alias_added=false
 
-# Check if Zsh is installed
-if [ -n "$(command -v zsh)" ]; then
+# Save the alias definition to the Bash configuration file
+if ! echo "alias cypher='.$SCANNERS_DIR/Scanners'" >> ~/.bashrc; then
+    echo "Error: Failed to append alias definition to ~/.bashrc"
+else
+    alias_added=true
+fi
+
+# Check if Zsh is installed and it's the current shell
+if [ -n "$(command -v zsh)" ] && [ "$SHELL" = "$(command -v zsh)" ]; then
     # Save the alias definition to the Zsh configuration file
-    echo "alias cypher='$SCANNERS_DIR'" >> ~/.zshrc
+    if ! echo "alias cypher='.$SCANNERS_DIR/Scanners'" >> ~/.zshrc; then
+        echo "Error: Failed to append alias definition to ~/.zshrc"
+    else
+        alias_added=true
+    fi
 fi
 
 # Apply the changes to the current shell session
 source ~/.bashrc
-source ~/.zshrc  
+if [ -n "$(command -v zsh)" ] && [ "$SHELL" = "$(command -v zsh)" ]; then
+    source ~/.zshrc
+fi
 
-echo "Alias 'cypher' has been set to '$SCANNERS_DIR'."
-echo "3. You can now use the 'cypher' command to start the scan."
-
+# Display message if alias was added to at least one shell
+if [ "$alias_added" = true ]; then
+    echo "Alias 'cypher' has been set to '.$SCANNERS_DIR/Scanners'."
+    echo "You can now use the 'cypher' command to start the scan."
+fi
