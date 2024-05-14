@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# Define the absolute path to the Scanners directory
-SCANNERS_DIR="$(pwd)"
-
 # Check if running with root privileges
 if [ "$(id -u)" -ne 0 ]; then
    echo "This script must be run as root" 
@@ -11,6 +8,11 @@ fi
 
 echo "Installing third-party tools..."
 echo ""
+
+# Debugging: Print the list of installed packages before installation
+echo "Before installation:"
+apt list --installed
+
 apt update
 apt install -y golang-go nmap uniscan dirb hping3
 
@@ -21,7 +23,14 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "Creating necessary files..."
-# Assuming Scanners.go is located in the same directory as this script
+
+# Check if Scanners.go file exists in the current directory
+if [ ! -f "$(pwd)/Scanners.go" ]; then
+    echo "Error: Scanners.go file not found in $CYPHER_DIR"
+    exit 1
+fi
+
+# Assuming Scanners.go is located in the current directory
 go build Scanners.go
 
 # Check if build was successful
@@ -29,38 +38,28 @@ if [ $? -ne 0 ]; then
     echo "Error: Failed to build Scanners"
     exit 1
 fi
-echo ""
-echo ""
+
 echo "Installation completed successfully"
 
-# Variable to track if alias was successfully added to any shell
-alias_added=false
+echo "Type file to store command (leave empty for ~/.bashrc): "
+read path
 
-# Save the alias definition to the Bash configuration file
-if ! echo "alias cypher='.$SCANNERS_DIR/Scanners'" >> ~/.bashrc; then
-    echo "Error: Failed to append alias definition to ~/.bashrc"
-else
-    alias_added=true
+# Check if the path is empty, and set it to ~/.bashrc if so
+if [ -z "$path" ]; then
+    path=~/.bashrc
 fi
 
-# Check if Zsh is installed and it's the current shell
-if [ -n "$(command -v zsh)" ] && [ "$SHELL" = "$(command -v zsh)" ]; then
-    # Save the alias definition to the Zsh configuration file
-    if ! echo "alias cypher='.$SCANNERS_DIR/Scanners'" >> ~/.zshrc; then
-        echo "Error: Failed to append alias definition to ~/.zshrc"
+# Use eval to expand the tilde in the path
+eval path="$path"
+
+# Check if the file exists before attempting to append the alias
+if [ -f "$path" ]; then
+    echo "alias cypher='$(pwd)/Scanners'" >> "$path"
+    if grep -q "alias cypher='$(pwd)/Scanners'" "$path"; then
+        echo "Alias 'cypher' was set successfully in $path."
     else
-        alias_added=true
+        echo "There was an error setting the alias 'cypher' in $path."
     fi
-fi
-
-# Apply the changes to the current shell session
-source ~/.bashrc
-if [ -n "$(command -v zsh)" ] && [ "$SHELL" = "$(command -v zsh)" ]; then
-    source ~/.zshrc
-fi
-
-# Display message if alias was added to at least one shell
-if [ "$alias_added" = true ]; then
-    echo "Alias 'cypher' has been set to '.$SCANNERS_DIR/Scanners'."
-    echo "You can now use the 'cypher' command to start the scan."
+else
+    echo "The file $path does not exist."
 fi
