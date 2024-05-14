@@ -33,7 +33,7 @@ func main() {
 	}
 	permission := CheckIfroot()
 	if permission == false {
-		fmt.Print("You are not root. IP Scan is " + Red + "unavailable \n" + Reset)
+		fmt.Print("You are not root. Some scans are " + Red + "unavailable \n" + Reset)
 	}
 	switch os.Args[1] {
 	case "-h", "--help":
@@ -51,13 +51,13 @@ func main() {
 			return
 		}
 	case "-nS", "--net-scan":
-		if permission == true {
 			netScan()
+	case "-m":
+		if permission == true {
+			MonitorMode()
 		} else {
 			return
 		}
-	case "-m":
-		MonitorMode()
 	default:
 		fmt.Println("Invalid option. Use '-h' or '--help' for usage instructions.")
 	}
@@ -766,43 +766,46 @@ func startMonitorMode(adapter string) string {
 
 func findNewAdapter(adapter string) string {
     cmdIWConfig := exec.Command("iwconfig")
-    cmdGrep := exec.Command("grep", adapter)
+    cmdAWK := exec.Command("awk", "/^"+adapter+"/ {print $1}")
 
-    // Set up a pipe to connect the stdout of cmdIWConfig to the stdin of cmdGrep
-    cmdGrep.Stdin, _ = cmdIWConfig.StdoutPipe()
+    // Set up a pipe to connect the stdout of cmdIWConfig to the stdin of cmdAWK
+    cmdAWK.Stdin, _ = cmdIWConfig.StdoutPipe()
 
-    // Set up output capturing for cmdGrep
-    var grepOutput bytes.Buffer
-    cmdGrep.Stdout = &grepOutput
+    // Set up output capturing for cmdAWK
+    var awkOutput bytes.Buffer
+    cmdAWK.Stdout = &awkOutput
 
-    // Start cmdGrep first to avoid a deadlock
-    if err := cmdGrep.Start(); err != nil {
-        fmt.Println(Red + "Error " + Reset + "starting grep command:", err)
+    // Start cmdAWK first to avoid a deadlock
+    if err := cmdAWK.Start(); err!= nil {
+        fmt.Println(Red + "Error " + Reset + "starting awk command:", err)
         return ""
     }
 
     // Run cmdIWConfig
-    if err := cmdIWConfig.Run(); err != nil {
+    if err := cmdIWConfig.Run(); err!= nil {
         fmt.Println(Red + "Error " + Reset + "running iwconfig command:", err)
         return ""
     }
 
-    // Wait for cmdGrep to finish
-    if err := cmdGrep.Wait(); err != nil {
-        fmt.Println(Red + "Error " + Reset + "waiting for grep command:", err)
+    // Wait for cmdAWK to finish
+    if err := cmdAWK.Wait(); err!= nil {
+        fmt.Println(Red + "Error " + Reset + "waiting for awk command:", err)
         return ""
     }
 
-    // Process the output of grep to get the found adapter
-    foundAdapter := grepOutput.String()
+    // Process the output of awk to get the found adapter
+    foundAdapter := awkOutput.String() // Correctly get the string output
+
+    // Use strings.TrimSpace to remove leading and trailing whitespace
+    foundAdapter = strings.TrimSpace(foundAdapter)
 
     return foundAdapter
 }
 
-func captureTraffic(adapter string) error {
+func captureTraffic(newadapter string) error {
     fmt.Println("Opening new terminal window and capturing wireless traffic.")
     // Adjusted to include a continuous monitoring argument
-    return launchTerminal("airodump-ng", adapter)
+    return launchTerminal("airodump-ng", newadapter)
 }
 
 
@@ -824,6 +827,20 @@ func deauthenticateTarget(BSSID , Station, newadapter string) error {
 func crackWPA(wordlist, file string) error {
 	fmt.Printf("Cracking WPA KEY")
 	return launchTerminal("aircrack-ng -w "+wordlist+" "+file)
+}
+
+func ReturnAdapterState(newadapter string) {
+	fmt.Print("Changing adapter back to Mode: Managed")
+	cmd := exec.Command("airmon-ng", "stop", newadapter)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err := cmd.Run()
+	if err!= nil {
+		fmt.Println(Red + "Error " + Reset + "reseting adapter : ", newadapter)
+		return
+	} else {
+		fmt.Println("Adapter reset was " + Green + "succesful" + Reset)
+	}
 }
 
 func MonitorMode() {
@@ -853,7 +870,7 @@ func MonitorMode() {
 	}
 
 	newadapter := startMonitorMode(adapter)
-	fmt.Print(newadapter)
+	fmt.Println("Using : " + newadapter)
 	// Scanning Wireless Traffic
 	err = captureTraffic(newadapter)
 	if err != nil {
@@ -899,6 +916,10 @@ func MonitorMode() {
 			return
 		} 
 	}
+
+	//returning adapter state to managed mode
+	ReturnAdapterState(newadapter)
+	
 	// wordlist file input
 	fmt.Print("Wordlist file : ")
 	scanner.Scan()
@@ -914,7 +935,7 @@ func MonitorMode() {
 		}
 	}
 	fmt.Println("File exists:", wordlistfile)
-	
+
 	// capture handshake file input
 	fmt.Print("Captured Files : ")
 	cmd = exec.Command("ls","|","grep","*.cap")
