@@ -43,4 +43,4 @@ fi
 
 echo "Installation completed successfully"
 echo ""
-echo "You can now run sudo ./Scanners <<option>>"
+echo "You can now run 'sudo ./cypher <<option>>'"
