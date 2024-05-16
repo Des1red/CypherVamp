@@ -870,6 +870,9 @@ func MonitorMode() {
 	}
 
 	newadapter := startMonitorMode(adapter)
+	if newadapter == "operation failed" {
+		return
+	}
 	fmt.Println("Using : " + newadapter)
 	// Scanning Wireless Traffic
 	err = captureTraffic(newadapter)
