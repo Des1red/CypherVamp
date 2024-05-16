@@ -10,16 +10,12 @@ echo "Installing third-party tools..."
 echo ""
 
 # Debugging: Print the list of installed packages before installation
-echo "Before installation:"
+echo "Before installation, already installed packages: "
 apt list --installed
-echo ""
-echo "Checking if everything is up to date . "
-echo ""
-apt update
 echo ""
 echo "Installing essential tools ."
 echo ""
-apt install -y golang-go nmap uniscan dirb hping3
+apt install -y golang-go nmap uniscan dirb hping3 aircrack-ng 
 echo ""
 
 # Check if installation was successful
@@ -47,26 +43,4 @@ fi
 
 echo "Installation completed successfully"
 echo ""
-
-echo "Type file to store command (leave empty for ~/.bashrc): "
-read path
-
-# Check if the path is empty, and set it to ~/.bashrc if so
-if [ -z "$path" ]; then
-    path=~/.bashrc
-fi
-
-# Use eval to expand the tilde in the path
-eval path="$path"
-
-# Check if the file exists before attempting to append the alias
-if [ -f "$path" ]; then
-    echo "alias cypher='$(pwd)/Scanners'" >> "$path"
-    if grep -q "alias cypher='$(pwd)/Scanners'" "$path"; then
-        echo "Alias 'cypher' was set successfully in $path."
-    else
-        echo "There was an error setting the alias 'cypher' in $path."
-    fi
-else
-    echo "The file $path does not exist."
-fi
+echo "You can now run sudo ./Scanners <<option>>"

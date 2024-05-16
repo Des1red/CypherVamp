@@ -25,6 +25,9 @@ Give permissions to installer : chmod +x installer.sh
 
 Run the installer : sudo ./installer.sh
 
+After the tools needed are installed , an excutable go file should be made 
+Run the excutable file : sudo ./cypher  <<options>>
+
 ## Usage
 
 Cypher supports the following command-line options:
@@ -65,13 +68,13 @@ Cypher supports the following command-line options:
 
 ## Examples
 
-Scan a specific URL/IP: cypher -v
+Scan a specific URL/IP: ./cypher -v
 
-Run Cypher with a file containing targets: cypher -f targetfile.txt
+Run Cypher with a file containing targets: ./cypher -f
 
-Scan the local network for targets: cypher -nS
+Scan the local network for targets: ./cypher -nS
 
-Enter network monitor mode: cypher -m
+Enter network monitor mode: ./cypher -m
 
 
 ## Contributing
