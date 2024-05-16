@@ -26,7 +26,7 @@ Give permissions to installer : chmod +x installer.sh
 Run the installer : sudo ./installer.sh
 
 After the tools needed are installed , an excutable go file should be made 
-Run the excutable file : sudo ./cypher  <<options>>
+Run the excutable file : sudo ./cypher -h
 
 ## Usage
 
