@@ -33,7 +33,7 @@ if [ ! -f "$(pwd)/Scanners.go" ]; then
 fi
 
 # Assuming Scanners.go is located in the current directory
-go build Scanners.go
+go build -o cypher Scanners.go
 
 # Check if build was successful
 if [ $? -ne 0 ]; then
