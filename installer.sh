@@ -12,9 +12,15 @@ echo ""
 # Debugging: Print the list of installed packages before installation
 echo "Before installation:"
 apt list --installed
-
+echo ""
+echo "Checking if everything is up to date . "
+echo ""
 apt update
+echo ""
+echo "Installing essential tools ."
+echo ""
 apt install -y golang-go nmap uniscan dirb hping3
+echo ""
 
 # Check if installation was successful
 if [ $? -ne 0 ]; then
@@ -26,7 +32,7 @@ echo "Creating necessary files..."
 
 # Check if Scanners.go file exists in the current directory
 if [ ! -f "$(pwd)/Scanners.go" ]; then
-    echo "Error: Scanners.go file not found in $CYPHER_DIR"
+    echo "Error: Scanners.go file not found in $(pwd)"
     exit 1
 fi
 
@@ -40,6 +46,7 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "Installation completed successfully"
+echo ""
 
 echo "Type file to store command (leave empty for ~/.bashrc): "
 read path
