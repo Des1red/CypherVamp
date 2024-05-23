@@ -288,7 +288,7 @@ func runNmapQuick(ip , outputDir string) {
     // Perform a second Nmap scan only on the open ports
     if len(openPorts) > 0 {
         fmt.Println(Green + "Performing second scan on open ports: "+ Reset +openPorts)
-        cmd = exec.Command("nmap", "-sC", "-A", "--script", "vuln", "-p"+openPorts,"-oA", outputDir+"QuickScan_"+ip)
+        cmd = exec.Command("nmap", "-sC", "-A", "--script", "vuln", "-p"+openPorts,"-oA", outputDir+"QuickScan_"+ip, ip)
         cmd.Stdout = os.Stdout
         cmd.Stderr = os.Stderr
 
