@@ -655,9 +655,24 @@ func netScan() {
     if subnet == "" {
         subnet = "192.168.1.0/24"
     }
+	fmt.Print("Do you want to scan only common ports ? ")
+	var choice string
+	fmt.Scanln(&choice)
+	for choice != "y" && choice != "n" {
+        fmt.Println("Please type y/n")
+        fmt.Print("Do you want to scan only common ports? (y/n): ")
+        fmt.Scanln(&choice)
+    }
+	
+	var cmd *exec.Cmd
+	if choice == "y" {
+		cmd = exec.Command("nmap", "-p80,443,445,21,22,23,25,110,143,8080", "-oG", "-", "-T4", subnet)
+	} 
+	if choice == "n" {
+		cmd = exec.Command("nmap", "-p0-", "-oG", "-", "-T4", subnet)
+	}
+	
     fmt.Println(Green + "Scanning " + Reset + subnet + Red + " >>" + Reset)
-    // Define the Nmap command with the subnet address and options to scan for alive hosts with open ports
-    cmd := exec.Command("nmap", "-p80,443,445,21,22,23,25,110,143,8080", "-oG", "-", "-T4", subnet)
 
     // Execute the command
     output, err := cmd.CombinedOutput()
