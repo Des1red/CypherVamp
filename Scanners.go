@@ -669,7 +669,7 @@ func netScan() {
 		cmd = exec.Command("nmap", "-p80,443,445,21,22,23,25,110,143,8080", "-oG", "-", "-T4", subnet)
 	} 
 	if choice == "n" {
-		cmd = exec.Command("nmap", "-p0-", "-oG", "-", "-T4", subnet)
+		cmd = exec.Command("nmap", "-sS", "-oG", "-", "-T4", subnet)
 	}
 	
     fmt.Println(Green + "Scanning " + Reset + subnet + Red + " >>" + Reset)
@@ -687,13 +687,36 @@ func netScan() {
     // Check if no hosts were found
     if len(scannedHosts) == 0 {
         fmt.Println("No hosts found.")
+    } else {
+		// Print the scanned hosts with open ports
+    	for host, ports := range scannedHosts {
+        	fmt.Printf("Scanned host: " + Red + "%s" + Reset + ", Open Ports: " + Green + "%v\n" + Reset, host, ports)
+    	}
+	}
+	fmt.Println()
+	fmt.Println("_______________________________________________________________________________________________\n")
+	fmt.Print("Do you want to perform an arp scan ? (y/n): ")
+	fmt.Scanln(&choice)
+	for choice != "y" && choice != "n" {
+        fmt.Println("Please type y/n")
+        fmt.Print("Do you want to perform an arp scan ? (y/n): ")
+        fmt.Scanln(&choice)
+    }
+	if choice == "y" {
+		cmd = exec.Command("arp-scan", subnet)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		err := cmd.Run()
+   		if err != nil {
+        fmt.Println("Error:", err)
         return
     }
 
-    // Print the scanned hosts with open ports
-    for host, ports := range scannedHosts {
-        fmt.Printf("Scanned host: " + Red + "%s" + Reset + ", Open Ports: " + Green + "%v\n" + Reset, host, ports)
-    }
+	}
+	fmt.Println()
+	fmt.Println("_______________________________________________________________________________________________\n")
+	
+	
 }
 	
 // ParseNmapOutput parses the Nmap output and extracts alive hosts with open ports
