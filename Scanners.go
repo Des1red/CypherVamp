@@ -690,7 +690,7 @@ func netScan() {
     } else {
 		// Print the scanned hosts with open ports
     	for host, ports := range scannedHosts {
-        	fmt.Printf("Scanned host: " + Red + "%s" + Reset + ", Open Ports: " + Green + "%v\n" + Reset, host, ports)
+        	fmt.Printf("Scanned host: " + Red + "%s" + Reset + "\n			 Open Ports: " + Green + "%v\n" + Reset, host, ports)
     	}
 	}
 	fmt.Println()
