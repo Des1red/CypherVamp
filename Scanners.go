@@ -708,11 +708,21 @@ func netScan() {
 		cmd.Stderr = os.Stderr
 		err := cmd.Run()
    		if err != nil {
-        fmt.Println("Error:", err)
-        return
-    }
-
+			fmt.Println("Error:", err)
+			return
+		}
+		fmt.Println()
+		fmt.Println("ARP CACHE : \n")
+		cmd = exec.Command("ip", "neighbor")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		err = cmd.Run()
+   		if err != nil {
+			fmt.Println("Error:", err)
+			return
+    	}
 	}
+
 	fmt.Println()
 	fmt.Println("_______________________________________________________________________________________________\n")
 	
