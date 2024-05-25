@@ -217,7 +217,7 @@ func runNmapAggressive(ip, outputDir string, done chan<- bool) {
         }
     }
     fmt.Printf("Using nmap "+Green+"Aggressive Scan"+Reset+" for IP first %s ports"+Red+">> "+Reset+"%s\n", Green+ports+Reset, Red+ip+Reset)
-    cmd := exec.Command("nmap", "-Pn", "-A", "-sC", "-p1-"+ports, "--open", "--stats-every", "30s", "-oA", outputDir+"AggresiveScan_"+ip, ip)
+    cmd := exec.Command("nmap", "-Pn", "-A", "--script", "vuln", "-p1-"+ports, "--open", "--stats-every", "30s", "-oA", outputDir+"AggresiveScan_"+ip, ip)
     fmt.Println(Red + "------------------------------------------------------------")
     cmd.Stdout = os.Stdout
     fmt.Println("------------------------------------------------------------" + Reset)
@@ -239,7 +239,7 @@ func runNmapSpoof(ip, outputDir string) {
     // Run nmap command
     go func() {
         defer close(nmapDone) // Signal that nmap is done when the function returns
-        cmd := exec.Command("nmap", "-Pn", "-sS", "-O", "-p1-1000", "--open", "--reason", "--stats-every", "30s", "-oA", outputDir+"nmap_output_"+ip, "-f", "--spoof-mac", "00:00:00:00:00:00", "--script", "vuln", ip)
+        cmd := exec.Command("nmap", "-Pn", "-sS", "-O", "-p1-1000", "--open", "--reason", "--stats-every", "30s", "-oA", outputDir+"nmap_output_"+ip, "-f", "--spoof-mac", "00:00:00:00:00:00", ip)
         fmt.Println(Red + "------------------------------------------------------------")
         cmd.Stdout = os.Stdout
         fmt.Println("------------------------------------------------------------" + Reset)
@@ -369,7 +369,7 @@ func runNikto(ip, outputDir string) {
         return
     }
     defer outputFile.Close()
-
+	
     niktoCmd := exec.Command("nikto", "-h", ip, "-ssl", "-Format", "txt", "-maxtime", "300", "-Tuning", "123bde", "-output", outputFilePath)
     niktoCmd.Stdout = outputFile
     if err := niktoCmd.Run(); err != nil {
