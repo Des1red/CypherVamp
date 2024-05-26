@@ -69,11 +69,11 @@ func help() {
 	fmt.Println("Command line >> ")
 	fmt.Println("Command 				Usage")
 	fmt.Println()
-	fmt.Println("	-h 	 --help			      Shows the command line")
-	fmt.Println("	-f  	   --file			   Runs Vamp with your own file file with targets")
-	fmt.Println("	-v						Starts cypher scanner for specific URL/IP")
-	fmt.Println("	-nS	--net-scan		Scans the local network for Targets")
-	fmt.Println("	-m					      Network Monitor")
+	fmt.Println("	-h 	 --help			Shows the command line")
+	fmt.Println("	-f  	 --file			Runs Vamp with your own file file with targets")
+	fmt.Println("	-v				Starts cypher scanner for specific URL/IP")
+	fmt.Println("	-nS	 --net-scan		Scans the local network for Targets")
+	fmt.Println("	-m				Network Monitor")
 	fmt.Println("\n")
 	fmt.Println(" ! WARNING : High number of IPs for concurrent scans using the --file argument may affect your system performance")
     fmt.Println("             Using the spoofing option for target scans might cause a dos attack depending on the specific network")
@@ -672,7 +672,7 @@ func netScan() {
 		cmd = exec.Command("nmap", "-sS", "-oG", "-", "-T4", subnet)
 	}
 	
-    fmt.Println(Green + "Scanning " + Reset + subnet + Red + " >>" + Reset)
+    fmt.Println(Green + "\nScanning " + Reset + subnet + Red + " >>" + Reset)
 
     // Execute the command
     output, err := cmd.CombinedOutput()
@@ -688,9 +688,10 @@ func netScan() {
     if len(scannedHosts) == 0 {
         fmt.Println("No hosts found.")
     } else {
+		fmt.Println("_______________________________________________________________________________________________\n")
 		// Print the scanned hosts with open ports
     	for host, ports := range scannedHosts {
-        	fmt.Printf("Scanned host: " + Red + "%s" + Reset + "\n			 Open Ports: " + Green + "%v\n" + Reset, host, ports)
+        	fmt.Printf("\nScanned host: " + Red + "%s" + Reset + "\n	Open Ports: " + Green + "%v\n" + Reset, host, ports)
     	}
 	}
 	fmt.Println()
@@ -761,9 +762,8 @@ func parseNmapOutput(output string) map[string][]string {
 }
 // End of Subnet scanner //
 
+
 // Network Monitoring //
-
-
 
 func launchTerminal(cmdArgs...string) error {
 	// Join the command arguments
