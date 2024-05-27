@@ -462,7 +462,7 @@ func performScan(site, ip, outputDir string) {
 			case <-loadingDone:
 				return
 			default:
-				fmt.Printf("\r%s%s", Yellow+"Program still running"+dots()+" "+Reset, Green)
+				fmt.Printf("\r%s%s", Yellow+"Program still running"+dots()+" "+Reset, Reset)
 				time.Sleep(500 * time.Millisecond)
 			}
 		}
@@ -564,7 +564,7 @@ func performScan(site, ip, outputDir string) {
 	wg.Wait()
 	cancel() // Ensure all commands are canceled if the context was not already done
 	 // All outputs processed, print completion message
-	 fmt.Println("All scans completed.\n")
+	 fmt.Println("Web scans completed.\n")
  }
 
 // Function to generate animated loading dots
