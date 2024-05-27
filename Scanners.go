@@ -532,13 +532,40 @@ func performScan(site, ip, outputDir string) {
 				nmapOutput = nil // Avoid multiple closures
 			}
 		}
-	}()
 
-	// Wait for all scanning goroutines to complete
+	}()
+	 // Collect outputs from all commands
+	 var allOutput []string
+	 for dirbOutput != nil || uniscanOutput != nil || nmapOutput != nil {
+		 select {
+		 case output, ok := <-dirbOutput:
+			 if ok {
+				 allOutput = append(allOutput, output)
+			 }
+			 dirbOutput = nil // Avoid multiple closures
+		 case output, ok := <-uniscanOutput:
+			 if ok {
+				 allOutput = append(allOutput, output)
+			 }
+			 uniscanOutput = nil // Avoid multiple closures
+		 case output, ok := <-nmapOutput:
+			 if ok {
+				 allOutput = append(allOutput, output)
+			 }
+			 nmapOutput = nil // Avoid multiple closures
+		 }
+	 }
+	 
+	 // Print all collected output
+	 for _, output := range allOutput {
+		 fmt.Printf("\r%s\n", output) // Print output without interrupting the loading message
+	 }
+	 	// Wait for all scanning goroutines to complete
 	wg.Wait()
-	fmt.Println("All scans completed.\n")
 	cancel() // Ensure all commands are canceled if the context was not already done
-}
+	 // All outputs processed, print completion message
+	 fmt.Println("All scans completed.\n")
+ }
 
 // Function to generate animated loading dots
 func dots() string {
