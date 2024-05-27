@@ -11,10 +11,11 @@ import (
 	"bufio"
 	"bytes"
 	"path/filepath"
-	"strconv"
+	//"strconv"
 	"net/url"
 	"time"
 	"unicode"
+	"regexp"
 )
 
 // COLORS
@@ -65,15 +66,15 @@ func main() {
 
 //Manual
 func help() {
-	fmt.Println("Help \n")
-	fmt.Println("Command line >> ")
-	fmt.Println("Command 				Usage")
+	fmt.Println("\nManual \n")
+	fmt.Println("Command line " + Red + ">> \n" + Reset)
+	fmt.Println("Command 			Usage")
 	fmt.Println()
-	fmt.Println("	-h 	 --help			Shows the command line")
-	fmt.Println("	-f  	 --file			Runs Vamp with your own file file with targets")
-	fmt.Println("	-v				Starts cypher scanner for specific URL/IP")
-	fmt.Println("	-nS	 --net-scan		Scans the local network for Targets")
-	fmt.Println("	-m				Network Monitor")
+	fmt.Println("	-h 	 --help			 Shows the command line\n")
+	fmt.Println("	-f  	  --file		     Runs Vamp with your own file file with targets\n")
+	fmt.Println("	-v				         Starts cypher scanner for specific IP/URL\n")
+	fmt.Println("	-nS	--net-scan	 Scans the local network for Targets\n")
+	fmt.Println("	-m				       Network Monitor")
 	fmt.Println("\n")
 	fmt.Println(" ! WARNING : High number of IPs for concurrent scans using the --file argument may affect your system performance")
     fmt.Println("             Using the spoofing option for target scans might cause a dos attack depending on the specific network")
@@ -117,7 +118,7 @@ func vamp() {
 	ipList := strings.Fields(ips)
 
 	// Print the list of IP addresses received
-	fmt.Println("IP addresses received:", ipList)
+	fmt.Println("\nIP addresses received:", ipList)
 
 	// Loop through each IP address and process them one by one
 	for _, ip := range ipList {
@@ -128,7 +129,7 @@ func vamp() {
 		}
 	}
 
-	fmt.Println("All scans completed.")
+	fmt.Println("\nAll scans completed.")
 }
 
 //validating ip
@@ -137,7 +138,7 @@ func isValidIP(ip string) bool {
 }
 //running all scanners 
 func processIP(ip, outputDir string) {
-	fmt.Printf("Target set to " + Red + ">> %s\n", Green+ip+Reset)
+	fmt.Printf("\nTarget set to " + Red + ">> %s\n", Green+ip+Reset)
 	if isHostAlive(ip) {
 		runNmap(ip, outputDir)
 		runNikto(ip, outputDir)
@@ -148,7 +149,7 @@ func processIP(ip, outputDir string) {
 }
 //checking if host is alive
 func isHostAlive(ip string) bool {
-	fmt.Println("Checking if target is reachable")
+	fmt.Println("\nChecking if target is reachable")
 	check := exec.Command("ping", "-c", "5", ip)
 	if err := check.Run(); err != nil {
 		return false
@@ -203,36 +204,48 @@ func runNmap(ip, outputDir string) {
 }
 //Nmap options //
 func runNmapAggressive(ip, outputDir string, done chan<- bool) {
-    fmt.Print("Ports (max port, empty for default): ")
+    fmt.Print("Ports (<21,22,23>, empty for default): ")
     var ports string
     fmt.Scanln(&ports)
     if len(ports) == 0 {
-        ports = "10000"
+        ports = "1-10000"
     } else {
-        // Validate if the input is a number
-        if _, err := strconv.Atoi(ports); err != nil {
-            fmt.Println(Red + "Invalid input. Port must be a number." + Reset)
-            done <- false // Signal that the nmap scan is done with an error
-            return
-        }
-    }
-    fmt.Printf("Using nmap "+Green+"Aggressive Scan"+Reset+" for IP first %s ports"+Red+">> "+Reset+"%s\n", Green+ports+Reset, Red+ip+Reset)
-    cmd := exec.Command("nmap", "-Pn", "-A", "--script", "vuln", "-p1-"+ports, "--open", "--stats-every", "30s", "-oA", outputDir+"AggresiveScan_"+ip, ip)
+   		// Validate if the input is numbers separated by commas
+		   valid, err := regexp.MatchString(`^(\d+)(,\d+)*$`, ports)
+		   if err != nil {
+			   fmt.Println("Error occurred while validating the input:", err)
+			   return
+		   }
+   
+		   if !valid {
+			   fmt.Println("Invalid input. Ports must be numbers separated by commas.")
+			   done <- false // Signal that the nmap scan is done with an error
+			   return
+		   }
+	   }
+   
+	   // Continue with the rest of your code
+	   fmt.Println("Valid ports:", ports)
+   
+
+
+    fmt.Printf("Set to "+Green+"Aggressive Scan\n"+Reset+"  %s ports"+Red+">> "+Reset+"%s\n", Green+ports+Reset, Red+ip+Reset)
+    cmd := exec.Command("nmap", "-Pn", "-A", "--script", "vuln", "-p"+ports, "--open", "--stats-every", "30s", "-oA", outputDir+"AggresiveScan_"+ip, ip)
     fmt.Println(Red + "------------------------------------------------------------")
     cmd.Stdout = os.Stdout
     fmt.Println("------------------------------------------------------------" + Reset)
 
     if err := cmd.Run(); err != nil {
-        fmt.Println(Red + "could not run nmap command:", err, Reset)
+        fmt.Println(Red + "could not run nmap command:"+Reset, err)
     }
-    fmt.Println(Red + " =============================================================" + Reset)
+    fmt.Println(Red + "\n =============================================================" + Reset)
 
     // Signal that the nmap scan is done
     done <- true
 }
 
 func runNmapSpoof(ip, outputDir string) {
-    fmt.Printf("Using nmap with " + Green + "Spoofed Mac for IP " + Red + ">> " + Reset + "%s\n", Red+ip+Reset)
+    fmt.Printf("Set to" + Green + "Spoofed Scan " + Red + ">> " + Reset + "%s\n", Red+ip+Reset)
 
     // Create a channel to communicate when nmap completes
     nmapDone := make(chan bool)
@@ -247,7 +260,7 @@ func runNmapSpoof(ip, outputDir string) {
         if err := cmd.Run(); err != nil {
             fmt.Println(Red+"could not run nmap command:", err, Reset)
         }
-        fmt.Println(Red + " =============================================================" + Reset)
+        fmt.Println(Red + "\n =============================================================" + Reset)
     }()
 
     // Run hping3 command concurrently with nmap
@@ -255,7 +268,7 @@ func runNmapSpoof(ip, outputDir string) {
     hpingCmd.Stdout = os.Stdout
 
     if err := hpingCmd.Start(); err != nil {
-        fmt.Println(Red+"could not start hping3 command:", err, Reset)
+        fmt.Println(Red+"could not start hping3 command:"+Reset, err)
         return
     }
 
@@ -272,7 +285,7 @@ func runNmapSpoof(ip, outputDir string) {
 }
 
 func runNmapQuick(ip , outputDir string) {
-    fmt.Printf("Using nmap " + Green + "Quick Scan" + Reset + " for IP  " + Red + ">> " + Reset + "%s\n", Red+ip+Reset)
+    fmt.Printf("Set to  " + Green + "Quick Scan" + Reset + "\n  IP  " + Red + ">> " + Reset + "%s\n", Red+ip+Reset)
     cmd := exec.Command("nmap","-T5", "--open", "-Pn", "-p0-", ip)
 
     // Run the first Nmap scan
@@ -287,8 +300,8 @@ func runNmapQuick(ip , outputDir string) {
 
     // Perform a second Nmap scan only on the open ports
     if len(openPorts) > 0 {
-        fmt.Println(Green + "Performing second scan on open ports: "+ Reset +openPorts)
-        cmd = exec.Command("nmap", "-sC", "-A", "--script", "vuln", "-p"+openPorts,"-oA", outputDir+"QuickScan_"+ip, ip)
+        fmt.Println(Green + "\nPerforming second scan on open ports: "+ Reset +openPorts)
+        cmd = exec.Command("nmap", "-Pn", "-A", "--script", "vuln", "-p"+openPorts,"-oA", outputDir+"QuickScan_"+ip, ip)
         cmd.Stdout = os.Stdout
         cmd.Stderr = os.Stderr
 
@@ -297,10 +310,10 @@ func runNmapQuick(ip , outputDir string) {
             return
         }
     } else {
-        fmt.Println(Green + "No open ports found, skipping second scan." + Reset)
+        fmt.Println(Green + "\nNo open ports found, skipping second scan." + Reset)
     }
 
-    fmt.Println(Red + " =============================================================" + Reset)
+    fmt.Println(Red + "\n =============================================================" + Reset)
 }
 
 // Function to extract open ports from Nmap scan output for quickscan
@@ -376,7 +389,7 @@ func runNikto(ip, outputDir string) {
         fmt.Println(Red + "Could not run Nikto command:", err.Error(), Reset)
         return
     }
-    fmt.Println(Red + "==============================================" + Reset)
+    fmt.Println(Red + "\n==============================================" + Reset)
 }
 
 // Function to sanitize URL for use as a filename
@@ -691,7 +704,7 @@ func netScan() {
 		fmt.Println("_______________________________________________________________________________________________\n")
 		// Print the scanned hosts with open ports
     	for host, ports := range scannedHosts {
-        	fmt.Printf("\nScanned host: " + Red + "%s" + Reset + "\n	Open Ports: " + Green + "%v\n" + Reset, host, ports)
+        	fmt.Printf("\nScanned host: " + Red + "%s" + Reset + "\n   Open Ports: " + Green + "%v\n" + Reset, host, ports)
     	}
 	}
 	fmt.Println()
@@ -704,12 +717,13 @@ func netScan() {
         fmt.Scanln(&choice)
     }
 	if choice == "y" {
+		fmt.Println()
 		cmd = exec.Command("arp-scan", subnet)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		err := cmd.Run()
    		if err != nil {
-			fmt.Println("Error:", err)
+			fmt.Println("\nError:", err)
 			return
 		}
 		fmt.Println()
