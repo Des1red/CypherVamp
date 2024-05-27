@@ -15,7 +15,7 @@ apt list --installed
 echo ""
 echo "Installing essential tools ."
 echo ""
-apt install -y golang-go nmap uniscan dirb hping3 aircrack-ng 
+apt install -y golang-go nmap uniscan dirb hping3 aircrack-ng arp-scan
 echo ""
 
 # Check if installation was successful
