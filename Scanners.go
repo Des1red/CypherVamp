@@ -27,9 +27,10 @@ const (
 )
 
 func main() {
-
-	if len(os.Args) != 2 {
-		fmt.Println("Usage: cypher [options]")
+	outputDir := "Cypher_RESULTS/"
+	directory(outputDir)
+	if len(os.Args) < 2 || len(os.Args) > 4 {
+		fmt.Println("Usage: cypher [options] [sub-option]")
 		return
 	}
 	permission := CheckIfroot()
@@ -40,14 +41,33 @@ func main() {
 	case "-h", "--help":
 		help()
 	case "-v":
-		if permission == true {
-			vamp()	
+		if permission {
+			if len(os.Args) > 2 {
+				switch os.Args[2] {
+				case "ip":
+					if len(os.Args) > 3 {
+						IpScan(outputDir)
+					} else {
+						fmt.Println("Usage: cypher -v ip [IP_ADDRESS]")
+					}
+				case "url":
+					if len(os.Args) > 3 {
+						UrlScan(outputDir)
+					} else {
+						fmt.Println("Usage: cypher -v url [URL]")
+					}
+				default:
+					fmt.Println("Invalid sub-option for -v. Use 'ip' or 'url'.")
+				}
+			} else {
+				vamp(outputDir)
+			}
 		} else {
 			return
 		}
 	case "--file", "-f" :
 		if permission == true {
-			ScanFile()
+			ScanFile(outputDir)
 		} else {
 			return
 		}
@@ -79,7 +99,12 @@ func help() {
 	fmt.Println(" ! WARNING : High number of IPs for concurrent scans using the --file argument may affect your system performance")
     fmt.Println("             Using the spoofing option for target scans might cause a dos attack depending on the specific network")
 }
-
+func directory(outputDir string) {
+	// Create the directory if it doesn't exist
+	if _, err := os.Stat(outputDir); os.IsNotExist(err) {
+		os.Mkdir(outputDir, 0755)
+	}
+}
 func CheckIfroot() bool {
 	  // Get the effective user ID of the current process
 	  euid := os.Geteuid()
@@ -92,19 +117,34 @@ func CheckIfroot() bool {
 		return false
 	}
 }
-
-// Vamp //
-func vamp() {
-
-	fmt.Printf(Icon())
-
+func IpScan(outputDir string) {
 	// Define the directory path to save the output files
-	outputDir := "SCAN_RESULTS/"
-
-	// Create the directory if it doesn't exist
-	if _, err := os.Stat(outputDir); os.IsNotExist(err) {
-		os.Mkdir(outputDir, 0755)
+	IPDir := outputDir+"IPS/"
+	directory(IPDir)
+	ip := os.Args[3]
+	if isValidIP(ip) {
+		if isHostAlive(ip) {
+			runNmap(ip,IPDir)
+		} else {
+			fmt.Println("Host is down.\n")
+		}
+	} else {
+		fmt.Println("Invalid IP.\n")
 	}
+	
+}
+func UrlScan(outputDir string) {
+	URLDir := outputDir+"URLS/"
+	directory(URLDir)
+	url := os.Args[3]
+	ip := "none"
+	performScan(url, ip, URLDir)
+}
+// Vamp //
+func vamp(outputDir string) {
+	VAMPDir := outputDir+"VAMP/"
+	directory(VAMPDir)
+	fmt.Printf(Icon())
 
 	// Input
 	var ips string
@@ -123,7 +163,7 @@ func vamp() {
 	// Loop through each IP address and process them one by one
 	for _, ip := range ipList {
 		if isValidIP(ip) {
-			processIP(ip, outputDir)
+			processIPForVamp(ip, VAMPDir)
 		} else {
 			fmt.Printf("Invalid IP: %s\n", ip)
 		}
@@ -137,7 +177,7 @@ func isValidIP(ip string) bool {
 	return net.ParseIP(ip) != nil
 }
 //running all scanners 
-func processIP(ip, outputDir string) {
+func processIPForVamp(ip, outputDir string) {
 	fmt.Printf("\nTarget set to " + Red + ">> %s\n", Green+ip+Reset)
 	if isHostAlive(ip) {
 		runNmap(ip, outputDir)
@@ -575,11 +615,21 @@ func dots() string {
 // End of URL Scanners //
 
 // Scan ips from file concurently
-func ScanFile() {
-    fmt.Print("File with targets " + Red + ">> " + Reset)
-    var fileToScan string
-    fmt.Scanln(&fileToScan)
-    // Read IP list from file
+func ScanFile(outputDir string) {
+	var fileToScan string
+	if os.Args[2] == "" {
+    	fmt.Print("File with targets " + Red + ">> " + Reset)
+		fmt.Scanln(&fileToScan)
+	} else {
+		fileToScan = os.Args[2]
+	}
+	// Check if the file exists
+	if _, err := os.Stat(fileToScan); os.IsNotExist(err) {
+		fmt.Println("File does not exist.")
+		return
+	}
+    
+	// Read IP list from file
     ipList, err := readIPListFromFile(fileToScan)
     if err != nil {
         fmt.Printf("Error reading IP list: %v\n", err)
@@ -587,12 +637,8 @@ func ScanFile() {
     }
 
     // Define the directory path to save the output files
-    outputDir := "FileScanned/"
-
-    // Create the directory if it doesn't exist
-    if _, err := os.Stat(outputDir); os.IsNotExist(err) {
-        os.Mkdir(outputDir, 0755)
-    }
+    FileDir := outputDir+"ScannedFiles/"
+	directory(FileDir)
 
     var wg sync.WaitGroup
     var mu sync.Mutex // Mutex for protecting buffer
@@ -604,7 +650,7 @@ func ScanFile() {
             wg.Add(1)
             go func(ip string) {
                 defer wg.Done()
-                scanOutput := MassiveScan(ip, outputDir)
+                scanOutput := MassiveScan(ip, FileDir)
                 mu.Lock()
                 defer mu.Unlock()
                 outputBuffer.WriteString(scanOutput)
@@ -629,11 +675,11 @@ func ScanFile() {
     fmt.Println(outputBuffer.String())
 
 	// Combine the XML files into one
-	combinedXMLFile := outputDir + "combined.xml"
+	combinedXMLFile := FileDir + "combined.xml"
 	fmt.Println("Combining XML files into:", combinedXMLFile)
 
 	// Check the list of XML files in the directory
-	xmlFiles, err := filepath.Glob(outputDir + "*.xml")
+	xmlFiles, err := filepath.Glob(FileDir + "*.xml")
 	if err != nil {
 		fmt.Println("Error finding XML files:", err)
 		return
@@ -681,10 +727,16 @@ func readIPListFromFile(filename string) ([]string, error) {
 }
 
 func MassiveScan(ip, outputDir string) string {
+	//saving output file with name
+	var outputFile string
+	outputFile = outputDir + ip + ".txt"
+	
+
     var output bytes.Buffer // Buffer to collect output
     fmt.Printf("Starting " + Green + "Scan" + Reset + " for IP " + Red + ">> " + Reset + "%s\n", Red+ip+Reset)
-    outputFile := outputDir + ip + ".txt"
-    cmd := exec.Command("nmap", "-T5", "-A", "--open", "-oA", outputFile, ip)
+	
+    //executing scan
+	cmd := exec.Command("nmap", "-T5", "-A", "--open", "-oA", outputFile, ip)
     fmt.Println(Green + "scanning " + Reset + " ..." + Red)
     cmd.Stdout = &output // Redirect command output to buffer
     fmt.Println("------------------------------------------------------------" + Reset)
@@ -692,7 +744,6 @@ func MassiveScan(ip, outputDir string) string {
     if err := cmd.Run(); err != nil {
         fmt.Println(Red+"could not run nmap command:", err, Reset)
     }
-    fmt.Println(Red + " =============================================================" + Reset)
 
     return output.String() // Return output as string
 }
