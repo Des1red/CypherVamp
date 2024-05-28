@@ -110,10 +110,10 @@ func CheckIfroot() bool {
 	  euid := os.Geteuid()
 	// Check if the effective user ID is 0 (root)
 	if euid == 0 {
-		fmt.Println("The program is running as " + Green + "root" + Reset + ".")
+		fmt.Println("The program is running as " + Green + "root" + Reset + ".\n")
 		return true
 	} else {
-		fmt.Println("The program is not running as root.")
+		fmt.Println("The program is not running as root.\n")
 		return false
 	}
 }
@@ -617,8 +617,9 @@ func dots() string {
 // Scan ips from file concurently
 func ScanFile(outputDir string) {
 	var fileToScan string
-	if os.Args[2] == "" {
-    	fmt.Print("File with targets " + Red + ">> " + Reset)
+
+	if len(os.Args) <= 2 || os.Args[2] == "" {
+		fmt.Print("File with targets " + Red + ">> " + Reset)
 		fmt.Scanln(&fileToScan)
 	} else {
 		fileToScan = os.Args[2]
@@ -737,7 +738,7 @@ func MassiveScan(ip, outputDir string) string {
 	
     //executing scan
 	cmd := exec.Command("nmap", "-T5", "-A", "--open", "-oA", outputFile, ip)
-    fmt.Println(Green + "scanning " + Reset + " ..." + Red)
+    
     cmd.Stdout = &output // Redirect command output to buffer
     fmt.Println("------------------------------------------------------------" + Reset)
 
