@@ -504,7 +504,7 @@ func performScan(site, outputDir string) {
     executeCommand := func(cmd *exec.Cmd, name string) (string, error) {
         output, err := cmd.CombinedOutput()
         if err != nil {
-            return "", fmt.Errorf("Error executing %s command: %v\nStderr: %s", name, err, string(output))
+            return "", fmt.Errorf("\nError executing %s command: %v\nStderr: %s", name, err, string(output))
         }
         return string(output), nil
     }
@@ -527,7 +527,7 @@ func performScan(site, outputDir string) {
     }
     updateProgress("Nmap completed")
 
-    niktoOutput, err := executeCommand(exec.CommandContext(ctx, "nikto", "-h", site, "-maxtime", "60", "-Tuning", "123bde"), "nikto")
+    niktoOutput, err := executeCommand(exec.CommandContext(ctx, "nikto", "-h", site, "-maxtime", "120", "-Tuning", "123bde"), "nikto")
     if err != nil {
         fmt.Println(err)
     }
