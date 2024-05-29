@@ -148,8 +148,7 @@ func UrlScan(outputDir string) {
     URLDir := filepath.Join(outputDir, "URLS")
     directory(URLDir)
     url := os.Args[3]
-    ip := "none"
-    performScan(url, ip, URLDir)
+    performScan(url, URLDir)
 }
 // Vamp //
 func vamp(outputDir string) {
@@ -194,7 +193,6 @@ func processIPForVamp(ip, outputDir string) {
 	fmt.Printf("\nTarget set to " + Red + ">> %s\n", Green+ip+Reset)
 	if isHostAlive(ip) {
 		runNmap(ip, outputDir)
-		runNikto(ip, outputDir)
 		getSpecificURL(ip, outputDir)
 	} else {
 		fmt.Printf("%s is 6 feet under :(.\n", Green+ip+Reset)
@@ -426,26 +424,6 @@ func extractOpenPorts(output []byte) string {
 // End of nmap options //
 
 // URL Scaanner //
-func runNikto(ip, outputDir string) {
-    fmt.Printf("Using Nikto for IP " + Red + ">> " + Reset + "%s\n", Green+ip+Reset)
-    // Specify the output directory path along with the filename
-    outputFilePath := outputDir + "/nikto_" + ip + ".txt"
-    outputFile, err := os.Create(outputFilePath)
-    if err != nil {
-        fmt.Println(Red + "Could not create output file:", err.Error(), Reset)
-        return
-    }
-    defer outputFile.Close()
-	
-    niktoCmd := exec.Command("nikto", "-h", ip, "-ssl", "-Format", "txt", "-maxtime", "300", "-Tuning", "123bde", "-output", outputFilePath)
-    niktoCmd.Stdout = outputFile
-    if err := niktoCmd.Run(); err != nil {
-        fmt.Println(Red + "Could not run Nikto command:", err.Error(), Reset)
-        return
-    }
-    fmt.Println(Red + "\n==============================================" + Reset)
-}
-
 // Function to sanitize URL for use as a filename
 func sanitizeURL(url string) string {
 	// Replace problematic characters with underscores
@@ -468,7 +446,7 @@ func extractIPAddress(rawurl string) (string, error) {
 	return host, nil
 }
 
-// Function to scan a specific URL for vulnerabilities
+// URL SCAN
 func getSpecificURL(ip, outputDir string) {
 
     scanner := bufio.NewScanner(os.Stdin)
@@ -482,47 +460,31 @@ func getSpecificURL(ip, outputDir string) {
         }
 
         // Perform the scan with additional arguments
-        performScan(site, ip, outputDir)
+        performScan(site, outputDir)
     }
 }
 
-
-// Function to perform the scan
-func performScan(site, ip, outputDir string) {
-    // Create a context to potentially cancel command execution
+func performScan(site, outputDir string) {
     ctx, cancel := context.WithCancel(context.Background())
-    defer cancel() // Ensure cancel is called to release resources
+    defer cancel()
 
-    // Sanitize the URL to make it suitable for use as a filename
     sanitizedURL := sanitizeURL(site)
-
-    // Extract IP address from URL
     targetIP, err := extractIPAddress(site)
     if err != nil {
         fmt.Println("Error extracting IP address:", err)
         return
     }
 
-    // Create output channels for each command
-    dirbOutput := make(chan string)
-    uniscanOutput := make(chan string)
-    nmapOutput := make(chan string)
-
-    // Use WaitGroup to wait for all goroutines to complete
-    var wg sync.WaitGroup
-
-    // Variable to keep track of the number of completed scans
+    var mu sync.Mutex
     completedScans := 0
 
-    // Function to update and display progress
-    updateProgress := func() {
-        fmt.Printf("\r%d/3 Scans Program still running%s ", completedScans, dots())
+    updateProgress := func(scanName string) {
+        mu.Lock()
+        defer mu.Unlock()
+        completedScans++
+        fmt.Printf("\n %s \n" , scanName)
     }
 
-    // Print initial progress message
-    updateProgress()
-
-    // Start the loading dots animation
     loadingDone := make(chan struct{})
     go func() {
         defer close(loadingDone)
@@ -532,67 +494,45 @@ func performScan(site, ip, outputDir string) {
                 return
             default:
                 time.Sleep(500 * time.Millisecond)
-                updateProgress()
+                mu.Lock()
+                fmt.Printf("\r%d/4 Scans " + Yellow + "%s " + Reset, completedScans, dots())
+                mu.Unlock()
             }
         }
     }()
-    // Execute Dirb command
-    wg.Add(1)
-	go func() {
-        defer wg.Done()
-        defer func() { completedScans++ }()
-        defer updateProgress()
-        dirbCmd := exec.CommandContext(ctx, "dirb", site, "-S", "-N", "404")
-        output, err := dirbCmd.CombinedOutput()
+
+    executeCommand := func(cmd *exec.Cmd, name string) (string, error) {
+        output, err := cmd.CombinedOutput()
         if err != nil {
-            dirbOutput <- fmt.Sprintf("Error executing dirb command: %v", err)
-        } else {
-            dirbOutput <- string(output)
+            return "", fmt.Errorf("Error executing %s command: %v\nStderr: %s", name, err, string(output))
         }
-        close(dirbOutput)
-    }()
+        return string(output), nil
+    }
 
-    // Execute Uniscan command
-    wg.Add(1)
-	go func() {
-        defer wg.Done()
-        defer func() { completedScans++ }()
-        defer updateProgress()
-        uniscanCmd := exec.CommandContext(ctx, "uniscan", "-u", site, "-qwe")
-        output, err := uniscanCmd.CombinedOutput()
-        if err != nil {
-            uniscanOutput <- fmt.Sprintf("Error executing uniscan command: %v", err)
-        } else {
-            uniscanOutput <- string(output)
-        }
-        close(uniscanOutput)
-    }()
+    dirbOutput, err := executeCommand(exec.CommandContext(ctx, "dirb", site, "-S", "-N", "404"), "dirb")
+    if err != nil {
+        fmt.Println(err)
+    }
+    updateProgress("Dirb completed")
 
-    // Execute Nmap command
-    wg.Add(1)
-	go func() {
-        defer wg.Done()
-        defer func() { completedScans++ }()
-        defer updateProgress()
-        nmapCmd := exec.CommandContext(ctx, "nmap", "-p443", "--script", "http-waf-detect", "--script-args", "http-waf-detect.aggro,http-waf-detect.detectBodyChanges", targetIP)
-        output, err := nmapCmd.CombinedOutput()
-        if err != nil {
-            nmapOutput <- fmt.Sprintf("Error executing nmap command: %v", err)
-        } else {
-            nmapOutput <- string(output)
-        }
-        close(nmapOutput)
-    }()
+    uniscanOutput, err := executeCommand(exec.CommandContext(ctx, "uniscan", "-u", site, "-qwe"), "uniscan")
+    if err != nil {
+        fmt.Println(err)
+    }
+    updateProgress("Uniscan completed")
 
-    // Wait for all scanning goroutines to complete
-    wg.Wait()
-    cancel() // Ensure all commands are canceled if the context was not already done
-	
+    nmapOutput, err := executeCommand(exec.CommandContext(ctx, "nmap", "-p443", "--script", "http-waf-detect", "--script-args", "http-waf-detect.aggro,http-waf-detect.detectBodyChanges", targetIP), "nmap")
+    if err != nil {
+        fmt.Println(err)
+    }
+    updateProgress("Nmap completed")
 
-    // Initialize variables to store command outputs
-	var dirbOutputStr, uniscanOutputStr, nmapOutputStr string
+    niktoOutput, err := executeCommand(exec.CommandContext(ctx, "nikto", "-h", site, "-maxtime", "60", "-Tuning", "123bde"), "nikto")
+    if err != nil {
+        fmt.Println(err)
+    }
+    updateProgress("Nikto completed")
 
-    // Write all outputs to a single file
     finalOutputFile := filepath.Join(outputDir, sanitizedURL+".txt")
     file, err := os.Create(finalOutputFile)
     if err != nil {
@@ -602,16 +542,20 @@ func performScan(site, ip, outputDir string) {
     defer file.Close()
 
     writer := bufio.NewWriter(file)
-    fmt.Fprintln(writer, "Dirb Output:\n", dirbOutputStr)
+    fmt.Fprintln(writer, "Dirb Output:\n", dirbOutput)
     fmt.Fprintln(writer, "------------------------------------------------------------")
-    fmt.Fprintln(writer, "Uniscan Output:\n", uniscanOutputStr)
+    fmt.Fprintln(writer, "Uniscan Output:\n", uniscanOutput)
     fmt.Fprintln(writer, "------------------------------------------------------------")
-    fmt.Fprintln(writer, "Nmap Output:\n", nmapOutputStr)
+    fmt.Fprintln(writer, "Nmap Output:\n", nmapOutput)
+    fmt.Fprintln(writer, "------------------------------------------------------------")
+    fmt.Fprintln(writer, "Nikto Output:\n", niktoOutput)
     writer.Flush()
 
-    // All outputs processed, print completion message
-    fmt.Println("Web scans completed. Combined output saved to:", finalOutputFile)
+    loadingDone <- struct{}{} // Signal the loading dots goroutine to stop
+
+    fmt.Println("\nWeb scans completed. Combined output saved to:", finalOutputFile)
 }
+
 // Function to generate animated loading dots
 func dots() string {
 	dots := []string{"", ".", "..", "..."}
