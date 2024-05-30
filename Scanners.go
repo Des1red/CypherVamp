@@ -11,7 +11,7 @@ import (
 	"bufio"
 	"bytes"
 	"path/filepath"
-	//"strconv"
+	"math/rand"
 	"net/url"
 	"time"
 	"unicode"
@@ -296,44 +296,132 @@ func runNmapAggressive(ip, outputDir string, done chan<- bool) {
     done <- true
 }
 
+// generateMAC generates a random MAC address. for spoof scan
+func generateMAC() (string, error) {
+	mac := make([]byte, 6)
+	_, err := rand.Read(mac)
+	if err != nil {
+		return "", err
+	}
+
+	// Set the local bit (second least significant bit of the first byte)
+	mac[0] = (mac[0] | 2) & 0xfe
+
+	return fmt.Sprintf("%02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]), nil
+}
+
+// isValidMAC checks if the given input is a valid MAC address. for spoof scan
+func isValidMAC(mac string) bool {
+	// Regular expression for validating MAC address
+	re := regexp.MustCompile(`^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$`)
+	return re.MatchString(mac)
+}
+
+func getSystemIP() (string, error) {
+	// Get system's IP address
+	ipCmd := exec.Command("hostname", "-I")
+	output, err := ipCmd.Output()
+	if err != nil {
+		return "", err
+	}
+	// Extract the first IP address from the output
+	ip := strings.Split(strings.TrimSpace(string(output)), " ")[0]
+	return ip, nil
+}
+
+// runNmapSpoof performs an nmap spoofed scan
 func runNmapSpoof(ip, outputDir string) {
-    fmt.Printf("Set to" + Green + "Spoofed Scan " + Red + ">> " + Reset + "%s\n", Red+ip+Reset)
+	// Create MAC address
+	fmt.Printf("Set to Spoofed Scan >> %s\n", ip)
+	var macAddress string
+	fmt.Print("\nMAC ADDRESS (leave blank to generate Mac): ")
+	fmt.Scanln(&macAddress)
+	macAddress = strings.TrimSpace(macAddress)
 
-    // Create a channel to communicate when nmap completes
-    nmapDone := make(chan bool)
-    // Run nmap command
-    go func() {
-        defer close(nmapDone) // Signal that nmap is done when the function returns
-        cmd := exec.Command("nmap", "-Pn", "-sS", "-O", "-p1-1000", "--open", "--reason", "--stats-every", "30s", "-oA", outputDir+"/Spoofer_"+ip, "-f", "--spoof-mac", "00:00:00:00:00:00", ip)
-        fmt.Println(Red + "------------------------------------------------------------")
-        cmd.Stdout = os.Stdout
-        fmt.Println("------------------------------------------------------------" + Reset)
+	// Validate MAC address
+	for !isValidMAC(macAddress) && macAddress != "" {
+		fmt.Print("Invalid MAC ADDRESS. Please enter a valid MAC address: ")
+		fmt.Scanln(&macAddress)
+		macAddress = strings.TrimSpace(macAddress)
+	}
 
-        if err := cmd.Run(); err != nil {
-            fmt.Println(Red+"could not run nmap command:", err, Reset)
-        }
-        fmt.Println(Red + "\n =============================================================" + Reset)
-    }()
+	// Generate MAC address if not provided
+	if macAddress == "" {
+		fmt.Println("\nGenerating MAC Address.")
+		var err error
+		macAddress, err = generateMAC()
+		if err != nil {
+			fmt.Println("Error generating MAC address:", err)
+			return
+		}
+	}
+	fmt.Printf("\nMAC address set to %s.\n", macAddress)
 
-    // Run hping3 command concurrently with nmap
-    hpingCmd := exec.Command("hping3", "--flood", "--rand-source", ip)
-    hpingCmd.Stdout = os.Stdout
+	// Source IP
+	var sourceIP string
+	fmt.Print("\nSource IP (leave blank to use system IP): ")
+	fmt.Scanln(&sourceIP)
 
-    if err := hpingCmd.Start(); err != nil {
-        fmt.Println(Red+"could not start hping3 command:"+Reset, err)
-        return
-    }
+	// If source IP is provided, validate it
+	if sourceIP != "" {
+		for !isValidIP(sourceIP) {
+			fmt.Print("Invalid IP, try again: ")
+			fmt.Scanln(&sourceIP)
+		}
+	} else {
+		// If source IP is not provided, get the system IP
+		systemIP, err := getSystemIP()
+		if err != nil {
+			fmt.Println("Error getting system IP address:", err)
+			return
+		}
+		sourceIP = systemIP
+	}
 
-    // Wait for nmap to complete
-    <-nmapDone
+	fmt.Printf("\nSource IP set to: %s\n", sourceIP)
 
-    // Stop hping3 command
-    fmt.Println("Stopping hping3")
-    if err := hpingCmd.Process.Kill(); err != nil {
-        fmt.Println(Red+"could not stop hping3:", err, Reset)
-    } else {
-        fmt.Println(Green + "hping3 command stopped" + Reset)
-    }
+	// Create channels to signal completion of nmap and nping
+	nmapDone := make(chan bool)
+	npingDone := make(chan bool)
+
+	// Run nmap command
+	go func() {
+		defer close(nmapDone) // Signal that nmap is done when the function returns
+		cmd := exec.Command("nmap", "-Pn", "-sS", "-O", "-p1-1000", "--open", "--reason", "--stats-every", "30s", "-oA", outputDir+"/Spoofer_"+ip, "-f", "--spoof-mac", macAddress, ip)
+		fmt.Println("------------------------------------------------------------")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		fmt.Println("------------------------------------------------------------")
+
+		if err := cmd.Run(); err != nil {
+			fmt.Println("\nCould not run nmap command:", err)
+		}
+		fmt.Println("\n=============================================================")
+	}()
+
+	// Run nping command concurrently with nmap
+	go func() {
+		defer close(npingDone) // Signal that nping is done when the function returns
+		npingCmd := exec.Command("nping", "--dest-ip", ip, "--source-ip", "0.0.0.0", "--icmp", "--rate", "100", "--delay", "100ms")
+		npingCmd.Stdout = os.Stdout
+		npingCmd.Stderr = os.Stderr
+
+		if err := npingCmd.Start(); err != nil {
+			fmt.Println("\nCould not start nping command:", err)
+			return
+		}
+
+		// Keep nping running until nmap is done
+		<-nmapDone
+		if err := npingCmd.Process.Kill(); err != nil {
+			fmt.Println("\nCould not stop nping command:", err)
+		}
+	}()
+
+	// Wait for nping to complete
+	<-npingDone
+
+	fmt.Println("\nBoth nmap and nping commands have completed\n")
 }
 
 func runNmapQuick(ip , outputDir string) {
