@@ -73,7 +73,7 @@ func main() {
 		}
 	case "-nS", "--net-scan":
 			netScan()
-	case "-m":
+	case "-wm":
 		if permission == true {
 			MonitorMode()
 		} else {
@@ -94,7 +94,7 @@ func help() {
 	fmt.Println("	-f  	  --file		     Runs Vamp with your own file file with targets\n")
 	fmt.Println("	-v				         Starts cypher scanner for specific IP/URL\n")
 	fmt.Println("	-nS	--net-scan	 Scans the local network for Targets\n")
-	fmt.Println("	-m				       Network Monitor")
+	fmt.Println("	-wm				       Wifi Monitor")
 	fmt.Println("\n")
 	fmt.Println(" ! WARNING : High number of IPs for concurrent scans using the --file argument may affect your system performance")
     fmt.Println("             Using the spoofing option for target scans might cause a dos attack depending on the specific network")
@@ -389,7 +389,6 @@ func runNmapSpoof(ip, outputDir string) {
 		defer close(nmapDone) // Signal that nmap is done when the function returns
 		cmd := exec.Command("nmap", "-Pn", "-sS", "-O", "-p1-1000", "--open", "--reason", "--stats-every", "30s", "-oA", outputDir+"/Spoofer_"+ip, "-f", "--spoof-mac", macAddress, ip)
 		fmt.Println("------------------------------------------------------------")
-		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		fmt.Println("------------------------------------------------------------")
 
@@ -402,7 +401,7 @@ func runNmapSpoof(ip, outputDir string) {
 	// Run nping command concurrently with nmap
 	go func() {
 		defer close(npingDone) // Signal that nping is done when the function returns
-		npingCmd := exec.Command("nping", "--dest-ip", ip, "--source-ip", "0.0.0.0", "--icmp", "--rate", "100", "--delay", "100ms")
+		npingCmd := exec.Command("nping", "--dest-ip", ip, "--source-ip", "0.0.0.0", "--icmp", "--rate", "100", "--delay", "100ms", "--count", "10000")
 		npingCmd.Stdout = os.Stdout
 		npingCmd.Stderr = os.Stderr
 
