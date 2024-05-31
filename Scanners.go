@@ -16,6 +16,7 @@ import (
 	"time"
 	"unicode"
 	"regexp"
+	"errors"
 )
 
 // COLORS
@@ -91,13 +92,16 @@ func help() {
 	fmt.Println("Command 			Usage")
 	fmt.Println()
 	fmt.Println("	-h 	 --help			 Shows the command line\n")
-	fmt.Println("	-f  	  --file		     Runs Vamp with your own file file with targets\n")
-	fmt.Println("	-v				         Starts cypher scanner for specific IP/URL\n")
-	fmt.Println("	-nS	--net-scan	 Scans the local network for Targets\n")
-	fmt.Println("	-wm				       Wifi Monitor")
+	fmt.Println("	-f  	  --file		     Starts Cypher Scanner ,reading file with targets\n")
+	fmt.Println("	-v				          Starts cypher scanner, FULL scan")
+	fmt.Println("	-v ip 					Starts cypher scannner, IP only")
+	fmt.Println("	-v url					Starts cypher scanner, URL only\n")
+	fmt.Println("	-nS	--net-scan	  Scans the local network\n")
+	fmt.Println("	-wm				      Wifi Monitoring")
+	fmt.Print("\n Command examples :	./cypher -v ip <<Target IP>>   |   ./cypher -v   |   ./cypher -wm <<adapter>>")
 	fmt.Println("\n")
 	fmt.Println(" ! WARNING : High number of IPs for concurrent scans using the --file argument may affect your system performance")
-    fmt.Println("             Using the spoofing option for target scans might cause a dos attack depending on the specific network")
+    fmt.Println("			      Using the spoofing option for target scans might cause a dos attack depending on the specific network")
 }
 func directory(outputDir string) {
 	// Create the directory if it doesn't exist
@@ -317,23 +321,37 @@ func isValidMAC(mac string) bool {
 	return re.MatchString(mac)
 }
 
-func getSystemIP() (string, error) {
-	// Get system's IP address
-	ipCmd := exec.Command("hostname", "-I")
-	output, err := ipCmd.Output()
+// getSystemIP retrieves the system's IP address based on a specified network adapter.
+func getSystemIP(adapter string) (string, error) {
+	// Get the IP address for the specified adapter
+	cmd := exec.Command("ip", "-4", "addr", "show", adapter)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err := cmd.Run()
 	if err != nil {
 		return "", err
 	}
-	// Extract the first IP address from the output
-	ip := strings.Split(strings.TrimSpace(string(output)), " ")[0]
-	return ip, nil
+
+	// Parse the output to find the IP address
+	lines := strings.Split(out.String(), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "inet ") {
+			// Extract the IP address
+			parts := strings.Fields(line)
+			if len(parts) > 1 {
+				ip := strings.Split(parts[1], "/")[0]
+				return ip, nil
+			}
+		}
+	}
+	return "", errors.New("could not find IP address for adapter")
 }
 
-// runNmapSpoof performs an nmap spoofed scan
+// runNmapSpoof performs an nmap spoofed scan.
 func runNmapSpoof(ip, outputDir string) {
-	// Create MAC address
-	fmt.Printf("Set to Spoofed Scan >> %s\n", ip)
-	var macAddress string
+	fmt.Printf("Set to Spoofed Scan " + Red + ">> " + Reset + "%s\n", ip)
+	var macAddress, sourceIP, adapter string
 	fmt.Print("\nMAC ADDRESS (leave blank to generate Mac): ")
 	fmt.Scanln(&macAddress)
 	macAddress = strings.TrimSpace(macAddress)
@@ -358,7 +376,6 @@ func runNmapSpoof(ip, outputDir string) {
 	fmt.Printf("\nMAC address set to %s.\n", macAddress)
 
 	// Source IP
-	var sourceIP string
 	fmt.Print("\nSource IP (leave blank to use system IP): ")
 	fmt.Scanln(&sourceIP)
 
@@ -369,18 +386,19 @@ func runNmapSpoof(ip, outputDir string) {
 			fmt.Scanln(&sourceIP)
 		}
 	} else {
+		fmt.Println("ADAPTER :")
+		fmt.Scanln(&adapter)
 		// If source IP is not provided, get the system IP
-		systemIP, err := getSystemIP()
+		systemIP, err := getSystemIP(adapter)
 		if err != nil {
 			fmt.Println("Error getting system IP address:", err)
 			return
 		}
 		sourceIP = systemIP
 	}
-
 	fmt.Printf("\nSource IP set to: %s\n", sourceIP)
 
-	// Create channels to signal completion of nmap and nping
+	// Create channels to signal completion of nmap, nping, and arpspoof
 	nmapDone := make(chan bool)
 	npingDone := make(chan bool)
 
@@ -401,7 +419,7 @@ func runNmapSpoof(ip, outputDir string) {
 	// Run nping command concurrently with nmap
 	go func() {
 		defer close(npingDone) // Signal that nping is done when the function returns
-		npingCmd := exec.Command("nping", "--dest-ip", ip, "--source-ip", "0.0.0.0", "--icmp", "--rate", "100", "--delay", "100ms", "--count", "10000")
+		npingCmd := exec.Command("nping", "--dest-ip", ip, "--source-ip", sourceIP, "--icmp", "--rate", "100", "--delay", "100ms", "--count", "10000")
 		npingCmd.Stdout = os.Stdout
 		npingCmd.Stderr = os.Stderr
 
@@ -417,7 +435,7 @@ func runNmapSpoof(ip, outputDir string) {
 		}
 	}()
 
-	// Wait for nping to complete
+	// Wait for nping and arpspoof to complete
 	<-npingDone
 
 	fmt.Println("\nBoth nmap and nping commands have completed\n")
@@ -1032,25 +1050,30 @@ func ReturnAdapterState(newadapter string) {
 }
 
 func MonitorMode() {
-	// Enabling monitor mode
-	cmd := exec.Command("iwconfig")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err := cmd.Run()
-	if err!= nil {
-		fmt.Println(Red + "Error " + Reset + "showing wifi adapters", err)
-		return
-	}
-	fmt.Println()
-	fmt.Print("Specify Wireless adapter <<wlan0>>: ")
+	var adapter string
 	scanner := bufio.NewScanner(os.Stdin)
-	scanner.Scan()
-	adapter := scanner.Text()
-
-	if adapter == "" {
-		adapter = "wlan0" // Default to wlan0 if no adapter is specified
+	if len(os.Args) != 3 {
+		// Enabling monitor mode
+		cmd := exec.Command("iwconfig")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		err := cmd.Run()
+		if err!= nil {
+			fmt.Println(Red + "Error " + Reset + "showing wifi adapters", err)
+			return
+		}
+		fmt.Println()
+		fmt.Print("Specify Wireless adapter <<wlan0>>: ")
+		scanner.Scan()
+		adapter = scanner.Text()
+		
+		if adapter == "" {
+			adapter = "wlan0" // Default to wlan0 if no adapter is specified
+		}
+	} else {
+		adapter = os.Args[2]
 	}
-
+	
 	//making sure adapter is wireless
 	if !strings.HasPrefix(adapter, "wlan") {
 		fmt.Println("Monitor mode is only applicable to wireless adapters. Please specify a wireless adapter.")
@@ -1063,7 +1086,7 @@ func MonitorMode() {
 	}
 	fmt.Println("Using : " + newadapter)
 	// Scanning Wireless Traffic
-	err = captureTraffic(newadapter)
+	err := captureTraffic(newadapter)
 	if err != nil {
 		fmt.Println(Red + "Failed " + Reset + "to capture wireless traffic with error :", err)
 		return
@@ -1129,7 +1152,7 @@ func MonitorMode() {
 
 	// capture handshake file input
 	fmt.Print("Captured Files : ")
-	cmd = exec.Command("ls","|","grep","*.cap")
+	cmd := exec.Command("ls","|","grep","*.cap")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()
