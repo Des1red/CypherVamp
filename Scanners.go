@@ -352,6 +352,8 @@ func getSystemIP(adapter string) (string, error) {
 func runNmapSpoof(ip, outputDir string) {
 	fmt.Printf("Set to Spoofed Scan " + Red + ">> " + Reset + "%s\n", ip)
 	var macAddress, sourceIP, adapter string
+	fmt.Print("ADAPTER :")
+	fmt.Scanln(&adapter)
 	fmt.Print("\nMAC ADDRESS (leave blank to generate Mac): ")
 	fmt.Scanln(&macAddress)
 	macAddress = strings.TrimSpace(macAddress)
@@ -386,8 +388,6 @@ func runNmapSpoof(ip, outputDir string) {
 			fmt.Scanln(&sourceIP)
 		}
 	} else {
-		fmt.Println("ADAPTER :")
-		fmt.Scanln(&adapter)
 		// If source IP is not provided, get the system IP
 		systemIP, err := getSystemIP(adapter)
 		if err != nil {
@@ -398,48 +398,109 @@ func runNmapSpoof(ip, outputDir string) {
 	}
 	fmt.Printf("\nSource IP set to: %s\n", sourceIP)
 
-	// Create channels to signal completion of nmap, nping, and arpspoof
-	nmapDone := make(chan bool)
-	npingDone := make(chan bool)
+	//Assign the Spoofed IP Address to the Interface:
+	ipcmd := exec.Command("ip", "addr", "add", sourceIP+"/24", "dev", adapter)
+	ipcmd.Stderr = os.Stderr
+	if err := ipcmd.Run(); err != nil {
+		fmt.Printf("\nError: Could not assign Spoofed Ip Address: %v\n", err)
+	} else {
+		fmt.Println("------------------------------------------------------------")
+		fmt.Println("Spoofed Ip assigned succesfully")
+		fmt.Println("------------------------------------------------------------")
+	}
 
+	// Create channels to signal completion of nmap, nping, and tcpdump
+	nmapDone := make(chan struct{})
+	npingDone := make(chan struct{})
+	tcpdumpDone := make(chan struct{})
+	
 	// Run nmap command
 	go func() {
 		defer close(nmapDone) // Signal that nmap is done when the function returns
-		cmd := exec.Command("nmap", "-Pn", "-sS", "-O", "-p1-1000", "--open", "--reason", "--stats-every", "30s", "-oA", outputDir+"/Spoofer_"+ip, "-f", "--spoof-mac", macAddress, ip)
-		fmt.Println("------------------------------------------------------------")
+		cmd := exec.Command("nmap", "-Pn", "-sS", "-O", "-p1-1000", "--open", "--reason", "--stats-every", "30s", "-oA", outputDir+"/Spoofer_"+ip, "-f", "--spoof-mac", macAddress, "-S", sourceIP, "-e", adapter, ip)
 		cmd.Stderr = os.Stderr
-		fmt.Println("------------------------------------------------------------")
 
+		fmt.Println("------------------------------------------------------------")
+		fmt.Printf("Starting nmap scan on IP: %s\n", ip)
+		fmt.Println("------------------------------------------------------------")
 		if err := cmd.Run(); err != nil {
-			fmt.Println("\nCould not run nmap command:", err)
+			fmt.Printf("\nError: Could not run nmap command: %v\n", err)
+		} else {
+			fmt.Println("------------------------------------------------------------")
+			fmt.Println("nmap scan completed successfully")
+			fmt.Println("------------------------------------------------------------")
 		}
-		fmt.Println("\n=============================================================")
 	}()
 
 	// Run nping command concurrently with nmap
 	go func() {
 		defer close(npingDone) // Signal that nping is done when the function returns
-		npingCmd := exec.Command("nping", "--dest-ip", ip, "--source-ip", sourceIP, "--icmp", "--rate", "100", "--delay", "100ms", "--count", "10000")
-		npingCmd.Stdout = os.Stdout
+		npingCmd := exec.Command("nping", "--dest-ip", ip, "--source-ip", sourceIP, "--icmp", "--rate", "100", "--delay", "20ms", "--count", "10000", "-e", adapter)
 		npingCmd.Stderr = os.Stderr
 
+		fmt.Println("------------------------------------------------------------")
+		fmt.Printf("Starting nping on IP: %s\n", ip)
+		fmt.Println("------------------------------------------------------------")
 		if err := npingCmd.Start(); err != nil {
-			fmt.Println("\nCould not start nping command:", err)
+			fmt.Printf("\nError: Could not start nping command: %v\n", err)
 			return
 		}
 
 		// Keep nping running until nmap is done
 		<-nmapDone
 		if err := npingCmd.Process.Kill(); err != nil {
-			fmt.Println("\nCould not stop nping command:", err)
+			fmt.Printf("\nError: Could not stop nping command: %v\n", err)
+		} else {
+			fmt.Println("------------------------------------------------------------")
+			fmt.Println("nping completed successfully")
+			fmt.Println("------------------------------------------------------------")
 		}
 	}()
 
-	// Wait for nping and arpspoof to complete
-	<-npingDone
+	// Run tcpdump command concurrently with nmap
+	go func() {
+		defer close(tcpdumpDone) // Signal that tcpdump is done when the function returns
+		tcpdumpCmd := exec.Command("tcpdump", "-n", "-i", adapter, "icmp", "and", "host", ip)
+		tcpdumpCmd.Stdout = os.Stdout
+		tcpdumpCmd.Stderr = os.Stderr
 
-	fmt.Println("\nBoth nmap and nping commands have completed\n")
+		fmt.Println("------------------------------------------------------------")
+		fmt.Printf("Starting tcpdump on interface: %s, host: %s\n", adapter, ip)
+		fmt.Println("------------------------------------------------------------")
+		if err := tcpdumpCmd.Start(); err != nil {
+			fmt.Printf("\nError: Could not start tcpdump command: %v\n", err)
+			return
+		}
+
+		// Keep tcpdump running until nmap is done
+		<-nmapDone
+		if err := tcpdumpCmd.Process.Kill(); err != nil {
+			fmt.Printf("\nError: Could not stop tcpdump command: %v\n", err)
+		} else {
+			fmt.Println("------------------------------------------------------------")
+			fmt.Println("tcpdump completed successfully")
+			fmt.Println("------------------------------------------------------------")
+		}
+	}()
+
+	// Wait for nping and tcpdump to complete
+	<-npingDone
+	<-tcpdumpDone
+
+	//Assign the Spoofed IP Address to the Interface:
+	ipcmd = exec.Command("ip", "addr", "del", sourceIP+"/24", "dev", adapter)
+	ipcmd.Stderr = os.Stderr
+	if err := ipcmd.Run(); err != nil {
+		fmt.Printf("\nError: Could not remove Spoofed Ip Address: %v\n", err)
+	} else {
+		fmt.Println("------------------------------------------------------------")
+		fmt.Println("Spoofed Ip removed succesfully")
+		fmt.Println("------------------------------------------------------------")
+	}
+
+	fmt.Println("All tasks completed successfully")
 }
+
 
 func runNmapQuick(ip , outputDir string) {
     fmt.Printf("Set to  " + Green + "Quick Scan" + Reset + "\n  IP  " + Red + ">> " + Reset + "%s\n", Red+ip+Reset)
