@@ -10,12 +10,12 @@ echo "Installing third-party tools..."
 echo ""
 
 # Debugging: Print the list of installed packages before installation
-echo "Before installation, already installed packages: "
-apt list --installed
+# echo "Before installation, already installed packages: "
+# apt list --installed
 echo ""
 echo "Installing essential tools ."
 echo ""
-apt install -y golang-go nmap uniscan dirb hping3 aircrack-ng arp-scan
+apt install -y golang-go nmap uniscan dirb hping3 aircrack-ng arp-scan tcpdump
 echo ""
 
 # Check if installation was successful

@@ -94,7 +94,7 @@ func help() {
 	fmt.Println("	-h 	 --help			 Shows the command line\n")
 	fmt.Println("	-f  	  --file		     Starts Cypher Scanner ,reading file with targets\n")
 	fmt.Println("	-v				          Starts cypher scanner, FULL scan")
-	fmt.Println("	-v ip 					Starts cypher scannner, IP only")
+	fmt.Println("	-v ip 					Starts cypher scanner, IP only")
 	fmt.Println("	-v url					Starts cypher scanner, URL only\n")
 	fmt.Println("	-nS	--net-scan	  Scans the local network\n")
 	fmt.Println("	-wm				      Wifi Monitoring")
