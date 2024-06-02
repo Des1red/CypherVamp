@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os/exec"
+	"os/signal"
 	"os"
 	"strings"
 	"context"
@@ -38,6 +39,20 @@ func main() {
 	if permission == false {
 		fmt.Print("You are not root. Some scans are " + Red + "unavailable \n" + Reset)
 	}
+	// Create a channel to listen for interrupt signals
+	sigChannel := make(chan os.Signal, 1)
+	signal.Notify(sigChannel, os.Interrupt)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Ensure the cancellation function is called on exit
+	defer cancel()
+
+	// Start a goroutine to listen for the interrupt signal
+	go func() {
+		<-sigChannel
+		fmt.Println(Red + "\nReceived interrupt signal. Shutting down..." + Reset)
+		cancel()
+	}()
 	switch os.Args[1] {
 	case "-h", "--help":
 		help()
@@ -47,7 +62,7 @@ func main() {
 				switch os.Args[2] {
 				case "ip":
 					if len(os.Args) > 3 {
-						IpScan(outputDir)
+						IpScan(ctx, outputDir)
 					} else {
 						fmt.Println("Usage: cypher -v ip [IP_ADDRESS]")
 					}
@@ -61,7 +76,7 @@ func main() {
 					fmt.Println("Invalid sub-option for -v. Use 'ip' or 'url'.")
 				}
 			} else {
-				vamp(outputDir)
+				vamp(ctx, outputDir)
 			}
 		} else {
 			return
@@ -100,8 +115,8 @@ func help() {
 	fmt.Println("	-wm				      Wifi Monitoring")
 	fmt.Print("\n Command examples :	./cypher -v ip <<Target IP>>   |   ./cypher -v   |   ./cypher -wm <<adapter>>")
 	fmt.Println("\n")
-	fmt.Println(" ! WARNING : High number of IPs for concurrent scans using the --file argument may affect your system performance")
-    fmt.Println("			      Using the spoofing option for target scans might cause a dos attack depending on the specific network")
+	fmt.Println(Red + " !" + Reset + "WARNING : High number of IPs for concurrent scans using the --file argument may affect your system performance")
+    fmt.Println("			     Using the spoofing option for target scans might cause a dos attack depending on the specific network")
 }
 func directory(outputDir string) {
 	// Create the directory if it doesn't exist
@@ -121,7 +136,7 @@ func CheckIfroot() bool {
 		return false
 	}
 }
-func IpScan(outputDir string) {
+func IpScan(ctx context.Context, outputDir string) {
 	// Define the directory path to save the output files
 	IPDir := filepath.Join(outputDir, "IPS")
 	directory(IPDir)
@@ -139,7 +154,7 @@ func IpScan(outputDir string) {
 			directory(TargetIpDir)
 			fmt.Println("Results are saved at : " + TargetIpDir + "\n")
 			// Run Nmap scan and save the results in the target directory
-			NmapMenu(ip, TargetIpDir)
+			NmapMenu(ctx, ip, TargetIpDir)
 		} else {
 			fmt.Println("Host is down.\n")
 		}
@@ -155,7 +170,7 @@ func UrlScan(outputDir string) {
     performScan(url, URLDir)
 }
 // Vamp //
-func vamp(outputDir string) {
+func vamp(ctx context.Context, outputDir string) {
 	VAMPDir := filepath.Join(outputDir, "VAMP")
 	directory(VAMPDir)
 	fmt.Printf(Icon())
@@ -179,7 +194,7 @@ func vamp(outputDir string) {
 		if isValidIP(ip) {
 			TargetIpDir := VAMPDir + "/" + ip
 			directory(TargetIpDir)
-			processIPForVamp(ip, TargetIpDir)
+			processIPForVamp(ctx, ip, TargetIpDir)
 		} else {
 			fmt.Printf("Invalid IP: %s\n", ip)
 		}
@@ -193,10 +208,10 @@ func isValidIP(ip string) bool {
 	return net.ParseIP(ip) != nil
 }
 //running all scanners 
-func processIPForVamp(ip, outputDir string) {
+func processIPForVamp(ctx context.Context, ip, outputDir string) {
 	fmt.Printf("\nTarget set to " + Red + ">> %s\n", Green+ip+Reset)
 	if isHostAlive(ip) {
-		NmapMenu(ip, outputDir)
+		NmapMenu(ctx, ip, outputDir)
 		getSpecificURL(ip, outputDir)
 	} else {
 		fmt.Printf("%s is 6 feet under :(.\n", Green+ip+Reset)
@@ -214,7 +229,7 @@ func isHostAlive(ip string) bool {
 }
 
 //nmap options menu
-func NmapMenu(ip, outputDir string) {
+func NmapMenu(ctx context.Context, ip, outputDir string) {
 	fmt.Println("\n"+outputDir)
     // Define the accepted options
     accept := map[string]bool{
@@ -249,9 +264,9 @@ func NmapMenu(ip, outputDir string) {
     // Run nmap based on the selected scan type
     switch scan {
     case "a", "A":
-        runNmapAggressive(ip, outputDir, done)
+        runNmapAggressive(ctx, ip, outputDir, done)
     case "s", "S":
-        runNmapSpoof(ip, outputDir)
+        runNmapSpoof(ctx, ip, outputDir)
     case "q", "Q":
         runNmapQuick(ip,  outputDir)
     default:
@@ -260,47 +275,57 @@ func NmapMenu(ip, outputDir string) {
 }
 //Nmap options //
 //AGGRESSIVE SCAN
-func runNmapAggressive(ip, outputDir string, done chan<- bool) {
+func runNmapAggressive(ctx context.Context, ip, outputDir string, done chan<- bool) {
+    defer func() { done <- true }()
+    
+    ports := promptUserForPorts()
+    if ports == "" {
+        ports = "1-10000"
+    }
+
+    fmt.Printf("Set to %sAggressive Scan%s ports: %s%s >> %s%s%s\n", Green, Reset, Green, ports, Red, ip, Reset)
+    cmd := exec.Command("nmap", "-Pn", "-A", "--script", "vuln", "-p"+ports, "--open", "--stats-every", "30s", "-oA", filepath.Join(outputDir, "AggresiveScan_"+ip), ip)
+    setupCmdOutput(cmd)
+    
+    if err := cmd.Run(); err != nil {
+        logError("could not run nmap command:", err)
+        return
+    }
+
+    logSuccess("Aggressive scan completed")
+}
+
+func promptUserForPorts() string {
     fmt.Print("Ports (<21,22,23>, empty for default): ")
     var ports string
     fmt.Scanln(&ports)
-    if len(ports) == 0 {
-        ports = "1-10000"
-    } else {
-   		// Validate if the input is numbers separated by commas
-		   valid, err := regexp.MatchString(`^(\d+)(,\d+)*$`, ports)
-		   if err != nil {
-			   fmt.Println("Error occurred while validating the input:", err)
-			   return
-		   }
-   
-		   if !valid {
-			   fmt.Println("Invalid input. Ports must be numbers separated by commas.")
-			   done <- false // Signal that the nmap scan is done with an error
-			   return
-		   }
-	   }
-   
-	   // Continue with the rest of your code
-	   fmt.Println("Valid ports:", ports)
-   
-
-
-    fmt.Printf("Set to "+Green+"Aggressive Scan\n"+Reset+"	ports: %s"+Red+" >> "+Reset+"%s\n", Green+ports+Reset, Red+ip+Reset)
-    cmd := exec.Command("nmap", "-Pn", "-A", "--script", "vuln", "-p"+ports, "--open", "--stats-every", "30s", "-oA", outputDir+"/AggresiveScan_"+ip, ip)
-    fmt.Println(Red + "------------------------------------------------------------")
-    cmd.Stdout = os.Stdout
-    fmt.Println("------------------------------------------------------------" + Reset)
-
-    if err := cmd.Run(); err != nil {
-        fmt.Println(Red + "could not run nmap command:"+Reset, err)
+    if valid, err := validatePorts(ports); !valid || err != nil {
+        logError("Invalid input. Ports must be numbers separated by commas.", err)
+        return ""
     }
-    fmt.Println(Red + "\n =============================================================" + Reset)
-
-    // Signal that the nmap scan is done
-    done <- true
+    return ports
 }
 
+func validatePorts(ports string) (bool, error) {
+    if len(ports) == 0 {
+        return true, nil
+    }
+    valid, err := regexp.MatchString(`^(\d+)(,\d+)*$`, ports)
+    return valid, err
+}
+
+func setupCmdOutput(cmd *exec.Cmd) {
+    cmd.Stdout = os.Stdout
+    cmd.Stderr = os.Stderr
+}
+
+func logError(message string, err error) {
+    fmt.Println(Red, message, err, Reset)
+}
+
+func logSuccess(message string) {
+    fmt.Println(Green, message, Reset)
+}
 // SPOOFER
 // generateMAC generates a random MAC address. for spoof scan
 func generateMAC() (string, error) {
@@ -348,16 +373,16 @@ func getSystemIP(adapter string) (string, error) {
 	return "", errors.New("could not find IP address for adapter")
 }
 
-func runNmapSpoof(ip, outputDir string) {
+func runNmapSpoof(ctx context.Context, ip, outputDir string) {
 	fmt.Printf("Set to Spoofed Scan" + Red + " >> " + Reset + "%s\n", ip)
 	adapter, macAddress, sourceIP, changedsource := getInput()
 	macAddress = validateOrGenerateMAC(macAddress)
 	sourceIP = getSourceIP(sourceIP, adapter)
 	nmapDone, npingDone, tcpdumpDone := make(chan struct{}), make(chan struct{}), make(chan struct{})
 
-	go runNmap(nmapDone, ip, outputDir, macAddress, sourceIP, adapter)
-	go runNping(nmapDone, npingDone, ip, sourceIP, macAddress, adapter)
-	go runTcpdump(nmapDone, tcpdumpDone, ip, adapter)
+	go runNmap(ctx, nmapDone, ip, outputDir, macAddress, sourceIP, adapter)
+	go runNping(ctx, nmapDone, npingDone, ip, sourceIP, macAddress, adapter)
+	go runTcpdump(ctx, nmapDone, tcpdumpDone, ip, adapter)
 
 	<-npingDone
 	<-tcpdumpDone
@@ -435,7 +460,7 @@ func assignIP(sourceIP, adapter string, add bool) {
 	}
 }
 
-func runNmap(done chan struct{}, ip, outputDir, macAddress, sourceIP, adapter string) {
+func runNmap(ctx context.Context, done chan struct{}, ip, outputDir, macAddress, sourceIP, adapter string) {
 	defer close(done)
 	cmd := exec.Command("nmap", "-Pn", "-sS", "-O", "-p1-1000", "--open", "--reason", "--stats-every", "30s", "-oA", outputDir+"/Spoofer_"+ip, "-f", "--spoof-mac", macAddress, "-S", sourceIP, "-D", "RND:5", "-e", adapter, ip)
 	cmd.Stderr = os.Stderr
@@ -444,13 +469,13 @@ func runNmap(done chan struct{}, ip, outputDir, macAddress, sourceIP, adapter st
 	if err := cmd.Run(); err != nil {
 		fmt.Printf("\nError: Could not run nmap command: %v\n", err)
 	} else {
-		fmt.Print("\n--------------------------------")
+		fmt.Print("\n--------------------------------\n")
 		fmt.Println("nmap scan completed successfully")
-		fmt.Print("\n--------------------------------")
+		fmt.Print("\n--------------------------------\n")
 	}
 }
 
-func runNping(nmapDone, npingDone chan struct{}, ip, sourceIP, macAddress, adapter string) {
+func runNping(ctx context.Context, nmapDone, npingDone chan struct{}, ip, sourceIP, macAddress, adapter string) {
 	defer close(npingDone)
 	npingCmd := exec.Command("nping", "--dest-ip", ip, "--source-ip", sourceIP, "--spoof-mac", macAddress, "--icmp", "--rate", "10", "--delay", "20ms", "--count", "10000", "-e", adapter)
 	npingCmd.Stderr = os.Stderr
@@ -465,13 +490,13 @@ func runNping(nmapDone, npingDone chan struct{}, ip, sourceIP, macAddress, adapt
 	if err := npingCmd.Process.Kill(); err != nil {
 		fmt.Printf("\nError: Could not stop nping command: %v\n", err)
 	} else {
-		fmt.Print("\n--------------------------------")
+		fmt.Print("\n--------------------------------\n")
 		fmt.Println("nping completed successfully")
-		fmt.Print("\n--------------------------------")
+		fmt.Print("\n--------------------------------\n")
 	}
 }
 
-func runTcpdump(nmapDone, tcpdumpDone chan struct{}, ip, adapter string) {
+func runTcpdump(ctx context.Context, nmapDone, tcpdumpDone chan struct{}, ip, adapter string) {
 	defer close(tcpdumpDone)
 	tcpdumpCmd := exec.Command("tcpdump", "-n", "-i", adapter, "icmp", "and", "host", ip)
 	stdoutPipe, err := tcpdumpCmd.StdoutPipe()
@@ -513,9 +538,9 @@ func runTcpdump(nmapDone, tcpdumpDone chan struct{}, ip, adapter string) {
 	if err := tcpdumpCmd.Process.Kill(); err != nil {
 		fmt.Printf("\nError: Could not stop tcpdump command: %v\n", err)
 	} else {
-		fmt.Print("\n--------------------------------")
+		fmt.Print("\n--------------------------------\n")
 		fmt.Println("tcpdump completed successfully")
-		fmt.Print("\n--------------------------------")
+		fmt.Print("\n--------------------------------\n")
 	}
 }
 
