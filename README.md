@@ -40,7 +40,7 @@ Cypher supports the following command-line options:
 
 -nS, --net-scan: Scan the local network for targets.
 
--m: Enter network monitor mode.
+-wm: Enter network monitor mode.
 
   ## Aggresive Scan Option :   
   
