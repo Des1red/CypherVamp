@@ -45,7 +45,7 @@ Cypher supports the following command-line options:
   ## Aggresive Scan Option :   
   
   - **Port Specification**: 
-  - The user is prompted to specify the maximum port number to be scanned. If no input is provided, the default maximum port number is set to 10,000.
+  - The user is prompted to specify the port number to be scanned. If no input is provided, the default maximum port number is set to 10,000.
     
   - This allows customization of the port range to be scanned based on user input.
    
