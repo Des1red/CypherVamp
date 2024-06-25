@@ -62,6 +62,7 @@ func getSystemIP(adapter string) (string, error) {
 }
 
 func Spoof(ctx context.Context, ip, outputDir string) {
+	fmt.Println("Results are saved at : " + outputDir + "\n")
 	fmt.Printf("Set to Spoofed Scan" + Red + " >> " + Reset + "%s\n", ip)
 	adapter, macAddress, sourceIP, changedsource := getInput()
 	macAddress = validateOrGenerateMAC(macAddress)

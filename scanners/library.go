@@ -28,7 +28,7 @@ func filterScanOutput(scanOutput string) string {
 
     for scanner.Scan() {
         line := scanner.Text()
-        if strings.HasPrefix(line, "Warning:") {
+        if strings.HasPrefix(line, "OS and Service") {
             break
         }
         if strings.HasPrefix(line, "PORT   STATE SERVICE VERSION") {

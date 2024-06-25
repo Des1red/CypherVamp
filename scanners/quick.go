@@ -12,6 +12,7 @@ import (
 
 //NMAP QUICK
 func Quick(ip , outputDir string) {
+    fmt.Println("Results are saved at : " + outputDir + "\n")
     fmt.Printf("Set to  " + Green + "Quick Scan" + Reset + "\n  IP  " + Red + ">> " + Reset + "%s\n", Red+ip+Reset)
     cmd := exec.Command("nmap","-T5", "--open", "-Pn", "-p0-", ip)
 
@@ -41,6 +42,7 @@ func Quick(ip , outputDir string) {
 		scanOutput := out.String()
 		filteredOutput := filterScanOutput(scanOutput)
 		fmt.Print(filteredOutput)
+
 		fmt.Printf("\nFor full scan details check : %s\n", outputDir)
 
     } else {

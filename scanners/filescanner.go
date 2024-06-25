@@ -129,6 +129,7 @@ func MassiveScan(ip, outputDir string) string {
 	
 
     var output bytes.Buffer // Buffer to collect output
+	fmt.Println("Results are saved at : " + outputDir + "\n")
     fmt.Printf("Starting " + Green + "Scan" + Reset + " for IP " + Red + ">> " + Reset + "%s\n", Red+ip+Reset)
 	
     //executing scan

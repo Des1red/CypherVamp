@@ -140,7 +140,7 @@ func IpScan(ctx context.Context, outputDir string) {
 			TargetIpDir := IPDir + "/" + ip
 			// Create the scanners.Directory for the specific IP
 			scanners.Directory(TargetIpDir)
-			fmt.Println("Results are saved at : " + TargetIpDir + "\n")
+			
 			// Run Nmap scan and save the results in the target scanners.Directory
 			NmapMenu(ctx, ip, TargetIpDir)
 		} else {
@@ -214,7 +214,7 @@ func isHostAlive(ip string) bool {
 
 //nmap options menu
 func NmapMenu(ctx context.Context, ip, outputDir string) {
-	fmt.Println("\n"+outputDir)
+	fmt.Println("\n Directory -> "+outputDir)
     // Define the accepted options
     accept := map[string]bool{
         "a": true,
