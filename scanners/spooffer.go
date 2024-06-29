@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	
+	"net"
 	"regexp"
 	"strings"
 	"bufio"
@@ -119,7 +119,7 @@ func getSourceIP(sourceIP, adapter string) string {
 			fmt.Print("Invalid IP, try again: ")
 			fmt.Scanln(&sourceIP)
 		}
-		assignIP(sourceIP, adapter, true)
+		assignIP(sourceIP, adapter, true ,false)
 	} else {
 		systemIP, err := getSystemIP(adapter)
 		if err != nil {
@@ -132,20 +132,40 @@ func getSourceIP(sourceIP, adapter string) string {
 	return sourceIP
 }
 
-func assignIP(sourceIP, adapter string, add bool) {
+func assignIP(sourceIP, adapter string, add bool, retry bool) {
 	action := "add"
 	if !add {
 		action = "del"
+	} else {
+		assigned, err := isIPAssigned(sourceIP)
+		if err != nil {
+			fmt.Printf("Error checking IP assignment: %v\n", err)
+			return
+		}
+		if assigned {
+			if retry {
+				fmt.Printf("IP address %s is already assigned. Removing and retrying...\n", sourceIP)
+				assignIP(sourceIP, adapter, false, false) // Remove the IP address
+				assignIP(sourceIP, adapter, true, false)  // Try adding the IP address again
+				return
+			} else {
+				fmt.Printf("IP address %s is already assigned.\n", sourceIP)
+				return
+			}
+		} else {
+			fmt.Printf("IP address %s is not assigned.\n", sourceIP)
+		}
 	}
+
 	ipcmd := exec.Command("ip", "addr", action, sourceIP+"/24", "dev", adapter)
 	ipcmd.Stderr = os.Stderr
 	if err := ipcmd.Run(); err != nil {
-		fmt.Printf("\nError: Could not %s Spoofed Ip Address: %v\n", action, err)
+		fmt.Printf("\nError: Could not %s IP address: %v\n", action, err)
 		if add {
 			os.Exit(1)
 		}
 	} else {
-		fmt.Printf("Spoofed Ip %sed successfully\n", action)
+		fmt.Printf("IP address %sed successfully\n", action)
 	}
 }
 
@@ -234,5 +254,35 @@ func runTcpdump(ctx context.Context, nmapDone, tcpdumpDone chan struct{}, ip, ad
 }
 
 func removeSpoofedIP(sourceIP, adapter string) {
-	assignIP(sourceIP, adapter, false)
+	assignIP(sourceIP, adapter, true ,false)
+}
+
+func isIPAssigned(ipToCheck string) (bool, error) {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return false, fmt.Errorf("failed to get interfaces: %w", err)
+	}
+
+	for _, iface := range interfaces {
+		addrs, err := iface.Addrs()
+		if err != nil {
+			return false, fmt.Errorf("failed to get addresses for interface %s: %w", iface.Name, err)
+		}
+
+		for _, addr := range addrs {
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+
+			if ip.String() == ipToCheck {
+				return true, nil
+			}
+		}
+	}
+
+	return false, nil
 }
