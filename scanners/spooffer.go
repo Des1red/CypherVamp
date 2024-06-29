@@ -64,9 +64,31 @@ func getSystemIP(adapter string) (string, error) {
 func Spoof(ctx context.Context, ip, outputDir string) {
 	fmt.Println("Results are saved at : " + outputDir + "\n")
 	fmt.Printf("Set to Spoofed Scan" + Red + " >> " + Reset + "%s\n", ip)
+	
+	//get user input
 	adapter, macAddress, sourceIP, changedsource := getInput()
 	macAddress = validateOrGenerateMAC(macAddress)
 	sourceIP = getSourceIP(sourceIP, adapter)
+
+	// clean up after program is done
+	originalMAC, err := getOriginalMAC(adapter)
+	if err != nil {
+		fmt.Println("Error retrieving original MAC address:", err)
+		os.Exit(1)
+	}
+	defer restoreMAC(adapter, originalMAC)
+
+	// Set the spoofed MAC address
+	if err := setMAC(adapter, macAddress); err != nil {
+		fmt.Println("Error setting spoofed MAC address:", err)
+		os.Exit(1)
+	}
+
+	if changedsource {
+		defer removeSpoofedIP(sourceIP, adapter)
+	}
+
+	// execute spoof scan
 	nmapDone, npingDone, tcpdumpDone := make(chan struct{}), make(chan struct{}), make(chan struct{})
 
 	go runNmap(ctx, nmapDone, ip, outputDir, macAddress, sourceIP, adapter)
@@ -76,9 +98,6 @@ func Spoof(ctx context.Context, ip, outputDir string) {
 	<-npingDone
 	<-tcpdumpDone
 
-	if changedsource {
-		removeSpoofedIP(sourceIP, adapter)
-	}
 	fmt.Println("All tasks completed successfully")
 }
 
@@ -119,7 +138,7 @@ func getSourceIP(sourceIP, adapter string) string {
 			fmt.Print("Invalid IP, try again: ")
 			fmt.Scanln(&sourceIP)
 		}
-		assignIP(sourceIP, adapter, true ,false)
+		assignIP(sourceIP, adapter, true)
 	} else {
 		systemIP, err := getSystemIP(adapter)
 		if err != nil {
@@ -132,40 +151,43 @@ func getSourceIP(sourceIP, adapter string) string {
 	return sourceIP
 }
 
-func assignIP(sourceIP, adapter string, add bool, retry bool) {
+func assignIP(sourceIP, adapter string, add bool) {
+	skipadd := false
 	action := "add"
 	if !add {
 		action = "del"
-	} else {
+	} else { // if its not del check if ip is assigned
+		
 		assigned, err := isIPAssigned(sourceIP)
 		if err != nil {
 			fmt.Printf("Error checking IP assignment: %v\n", err)
 			return
 		}
 		if assigned {
-			if retry {
-				fmt.Printf("IP address %s is already assigned. Removing and retrying...\n", sourceIP)
-				assignIP(sourceIP, adapter, false, false) // Remove the IP address
-				assignIP(sourceIP, adapter, true, false)  // Try adding the IP address again
-				return
-			} else {
 				fmt.Printf("IP address %s is already assigned.\n", sourceIP)
-				return
-			}
+				skipadd = true
 		} else {
-			fmt.Printf("IP address %s is not assigned.\n", sourceIP)
+				fmt.Printf("IP address %s is not assigned. Assigning Ip.\n", sourceIP)	
 		}
-	}
 
-	ipcmd := exec.Command("ip", "addr", action, sourceIP+"/24", "dev", adapter)
-	ipcmd.Stderr = os.Stderr
-	if err := ipcmd.Run(); err != nil {
-		fmt.Printf("\nError: Could not %s IP address: %v\n", action, err)
-		if add {
-			os.Exit(1)
+	}
+	
+//continue with action
+	if skipadd != true {
+		ipcmd := exec.Command("ip", "addr", action, sourceIP+"/24", "dev", adapter)
+		ipcmd.Stderr = os.Stderr
+		if err := ipcmd.Run(); err != nil {
+
+			fmt.Printf("\nError: Could not %s IP address: %v\n", action, err)
+			if add {
+				os.Exit(1)
+			}
+	
+		} else {
+			
+			fmt.Printf("IP address %sed successfully\n", action)
+		
 		}
-	} else {
-		fmt.Printf("IP address %sed successfully\n", action)
 	}
 }
 
@@ -253,10 +275,12 @@ func runTcpdump(ctx context.Context, nmapDone, tcpdumpDone chan struct{}, ip, ad
 	}
 }
 
+//cleaning up ip address
 func removeSpoofedIP(sourceIP, adapter string) {
-	assignIP(sourceIP, adapter, true ,false)
+	assignIP(sourceIP, adapter, false)
 }
 
+// check if spoof ip is already assigned
 func isIPAssigned(ipToCheck string) (bool, error) {
 	interfaces, err := net.Interfaces()
 	if err != nil {
@@ -285,4 +309,29 @@ func isIPAssigned(ipToCheck string) (bool, error) {
 	}
 
 	return false, nil
+}
+
+// cleaning up mac address
+func getOriginalMAC(adapter string) (string, error) {
+	iface, err := net.InterfaceByName(adapter)
+	if err != nil {
+		return "", fmt.Errorf("failed to get interface by name: %w", err)
+	}
+	return iface.HardwareAddr.String(), nil
+}
+
+func restoreMAC(adapter, originalMAC string) {
+	if err := setMAC(adapter, originalMAC); err != nil {
+		fmt.Println("Error restoring original MAC address:", err)
+	}
+}
+
+func setMAC(adapter, macAddress string) error {
+	cmd := exec.Command("ip", "link", "set", "dev", adapter, "address", macAddress)
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("could not set MAC address: %w", err)
+	}
+	fmt.Printf("MAC address set back to %s\n", macAddress)
+	return nil
 }
