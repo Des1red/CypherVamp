@@ -21,17 +21,17 @@ func IsValidIP(ip string) bool {
 	return net.ParseIP(ip) != nil
 }
 
-func filterScanOutput(scanOutput string) string {
+func filterScanOutput(scanOutput, start, end string) string {
     scanner := bufio.NewScanner(strings.NewReader(scanOutput))
     var filteredOutput bytes.Buffer
     inPortSection := false
 
     for scanner.Scan() {
         line := scanner.Text()
-        if strings.HasPrefix(line, "OS and Service") {
+        if strings.HasPrefix(line, end) {
             break
         }
-        if strings.HasPrefix(line, "PORT   STATE SERVICE VERSION") {
+        if strings.HasPrefix(line, start) {
             inPortSection = true
         }
         if inPortSection {
@@ -41,3 +41,4 @@ func filterScanOutput(scanOutput string) string {
 
     return filteredOutput.String()
 }
+

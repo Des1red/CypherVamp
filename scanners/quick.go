@@ -2,13 +2,31 @@ package scanners
 
 import (
 	"fmt"
-	"os"
+	"sync"
 	"os/exec"
 	"unicode"
 	"strings"
-	"bytes"
+
 	
 )
+
+type FilterFunc func(string, string, string) string
+
+func execNmapAndFilter(args []string, filter FilterFunc, startat, endat string) (string, error) {
+    cmd := exec.Command("nmap", args...)
+    output, err := cmd.CombinedOutput()
+    if err != nil {
+        return "", fmt.Errorf("failed to execute command: %v, output: %s", err, string(output))
+    }
+
+    // Convert the output to string
+    scanOutput := string(output)
+
+    // Filter the scan output based on specified criteria
+    filteredOutput := filter(scanOutput, startat, endat)
+
+    return filteredOutput, nil
+}
 
 //NMAP QUICK
 func Quick(ip , outputDir string) {
@@ -29,20 +47,45 @@ func Quick(ip , outputDir string) {
     // Perform a second Nmap scan only on the open ports
     if len(openPorts) > 0 {
         fmt.Printf("\nPerforming second scan on open ports: %s\n",Green+openPorts+Reset)
-        cmd = exec.Command("nmap", "-Pn", "-A", "--script", "vuln", "-p"+openPorts,"-oA", outputDir+"/QuickScan_"+ip, ip)
-        var out bytes.Buffer
-		cmd.Stdout = &out
-		cmd.Stderr = os.Stderr
 
-        if err := cmd.Run(); err != nil {
-            fmt.Println(Red+"could not run nmap command:", err, Reset)
-            return
-        }
+        // Command arguments for version and OS detection scan
+        args1 := []string{"-Pn", "-A", "-p", openPorts, "-oN", fmt.Sprintf("%s/QuickScan_%s_VersionOsScan", outputDir, ip), ip}
+        // Command arguments for vulnerability scan
+        args2 := []string{"-Pn", "--script", "vuln", "-p", openPorts, "-oN", fmt.Sprintf("%s/QuickScan_%s_VulnScan", outputDir, ip), ip}
 
-		scanOutput := out.String()
-		filteredOutput := filterScanOutput(scanOutput)
-		fmt.Print(filteredOutput)
+        // Execute the version and OS detection scan
+        var wg sync.WaitGroup
 
+        // Increment the WaitGroup counter for the first Goroutine
+        wg.Add(1)
+        go func() {
+            defer wg.Done() // Decrement the counter when the Goroutine completes
+            startat := "PORT      STATE SERVICE VERSION"
+            endat := "OS and Service"
+            filteredOutput, err := execNmapAndFilter(args1, filterScanOutput, startat, endat)
+            if err != nil {
+                fmt.Println("Error executing nmap command:", err)
+                return
+            } 
+            fmt.Println(filteredOutput)
+        }()
+
+        // Increment the WaitGroup counter for the second Goroutine
+        wg.Add(1)
+        go func() {
+            defer wg.Done() // Decrement the counter when the Goroutine completes
+            startat := "PORT      STATE SERVICE"
+            endat := "# Nmap done"
+            filteredOutput, err := execNmapAndFilter(args2, filterScanOutput, startat, endat)
+            if err != nil {
+                fmt.Println("Error executing nmap command:", err)
+                return
+            }
+            fmt.Println(filteredOutput)
+        }()
+
+        // Wait for both Goroutines to complete
+        wg.Wait()
 		fmt.Printf("\nFor full scan details check : %s\n", outputDir)
 
     } else {
