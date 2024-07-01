@@ -29,7 +29,7 @@ func Aggressive(ctx context.Context, ip, outputDir string, done chan<- bool) {
     }
     fmt.Println("Results are saved at : " + outputDir + "\n")
     fmt.Printf("Set to %sAggressive Scan%s ports: %s%s >> %s%s%s\n", Green, Reset, Green, ports, Red, ip, Reset)
-    cmd := exec.Command("nmap", "-Pn", "-A", "--script", "vuln", "-p"+ports, "--open", "--stats-every", "30s", "-oA", filepath.Join(outputDir, "AggresiveScan_"+ip), ip)
+    cmd := exec.Command("nmap", "-Pn", "-A", "--script", "vuln", "-p"+ports, "--open", "-oA", filepath.Join(outputDir, "AggresiveScan_"+ip), ip)
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = os.Stderr
