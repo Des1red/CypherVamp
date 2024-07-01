@@ -78,12 +78,6 @@ func Spoof(ctx context.Context, ip, outputDir string) {
 	}
 	defer restoreMAC(adapter, originalMAC)
 
-	// Set the spoofed MAC address
-	if err := setMAC(adapter, macAddress); err != nil {
-		fmt.Println("Error setting spoofed MAC address:", err)
-		os.Exit(1)
-	}
-
 	if changedsource {
 		defer removeSpoofedIP(sourceIP, adapter)
 	}
@@ -103,6 +97,7 @@ func Spoof(ctx context.Context, ip, outputDir string) {
 
 func getInput() (string, string, string, bool) {
 	var adapter, macAddress, sourceIP string
+	var CheckIFIpChanged bool
 	fmt.Print("ADAPTER: ")
 	fmt.Scanln(&adapter)
 	fmt.Print("\nMAC ADDRESS (leave blank to generate Mac): ")
@@ -110,7 +105,12 @@ func getInput() (string, string, string, bool) {
 	macAddress = strings.TrimSpace(macAddress)
 	fmt.Print("\nSource IP (leave blank to use system IP): ")
 	fmt.Scanln(&sourceIP)
-	return adapter, macAddress, sourceIP, false
+	if sourceIP != "" {
+		CheckIFIpChanged = true
+	} else {
+		CheckIFIpChanged = false
+	}
+	return adapter, macAddress, sourceIP, CheckIFIpChanged
 }
 
 func validateOrGenerateMAC(macAddress string) string {
@@ -184,9 +184,12 @@ func assignIP(sourceIP, adapter string, add bool) {
 			}
 	
 		} else {
-			
-			fmt.Printf("IP address %sed successfully\n", action)
-		
+			switch action{
+			case "add":
+				fmt.Printf("IP address %sed successfully\n", action)
+			case "del":
+				fmt.Printf("IP address %seted successfully\n", action)
+			}
 		}
 	}
 }
