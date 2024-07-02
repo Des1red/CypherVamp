@@ -92,7 +92,9 @@ func Spoof(ctx context.Context, ip, outputDir string) {
 	<-npingDone
 	<-tcpdumpDone
 
-	fmt.Println("All tasks completed successfully")
+	fmt.Println("All tasks completed successfully\n")
+	fmt.Printf("Results are saved at %s .", outputDir)
+
 }
 
 func getInput() (string, string, string, bool) {
