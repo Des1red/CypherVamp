@@ -60,7 +60,7 @@ func Quick(ip , outputDir string) {
         wg.Add(1)
         go func() {
             defer wg.Done() // Decrement the counter when the Goroutine completes
-            startat := "PORT      STATE SERVICE VERSION"
+            startat := "PORT"
             endat := "OS and Service"
             filteredOutput, err := execNmapAndFilter(args1, filterScanOutput, startat, endat)
             if err != nil {
@@ -74,7 +74,7 @@ func Quick(ip , outputDir string) {
         wg.Add(1)
         go func() {
             defer wg.Done() // Decrement the counter when the Goroutine completes
-            startat := "PORT      STATE SERVICE"
+            startat := "PORT"
             endat := "# Nmap done"
             filteredOutput, err := execNmapAndFilter(args2, filterScanOutput, startat, endat)
             if err != nil {

@@ -40,7 +40,7 @@ func Aggressive(ctx context.Context, ip, outputDir string, done chan<- bool) {
     }
 
 	scanOutput := out.String()
-    startat := "PORT   STATE SERVICE VERSION"
+    startat := "PORT"
     endat := "OS and Service"
 	filteredOutput := filterScanOutput(scanOutput, startat, endat)
 	fmt.Printf("\n%s",filteredOutput)
