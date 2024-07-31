@@ -45,6 +45,8 @@ func main() {
 		<-sigChannel
 		fmt.Println(Red + "\nReceived interrupt signal. Shutting down..." + Reset)
 		cancel()
+		os.Exit(1) // Exit the program when an interrupt signal is received
+
 	}()
 	switch os.Args[1] {
 	case "-h", "--help":
